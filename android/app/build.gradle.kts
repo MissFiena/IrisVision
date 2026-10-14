@@ -7,9 +7,6 @@ plugins {
 
 android {
     namespace = "com.example.irisvision"
-    // FIX: was 36 -- not required by camera/sqflite/speech_to_text, and risks
-    // "failed to find target android-36" on machines without that SDK platform
-    // installed (e.g. your supervisor's laptop, lab PCs). Matches targetSdk.
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -35,9 +32,11 @@ android {
         }
     }
 
-    buildTypes {
+        buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }

@@ -10,11 +10,15 @@ class LiveDetectionView extends StatefulWidget {
   State<LiveDetectionView> createState() => _LiveDetectionViewState();
 }
 
-class _LiveDetectionViewState extends State<LiveDetectionView> {
+class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindingObserver {
   CameraController? _cameraController;
+  CameraDescription? _camera;
   bool _isCameraInitialized = false;
   bool _permissionDenied = false;
   bool _disposed = false;
+  bool _starting = false;
+  bool _initializing = false;
+  String? _errorMessage;
 
   final TFLiteService _tfLiteService = TFLiteService();
 
@@ -30,42 +34,135 @@ class _LiveDetectionViewState extends State<LiveDetectionView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeSystem();
   }
 
+  void _safeSetState(VoidCallback fn) {
+    if (mounted && !_disposed) setState(fn);
+  }
+
+  // ============================ INIT ============================
   Future<void> _initializeSystem() async {
-    final cameraStatus = await Permission.camera.request();
-    if (!cameraStatus.isGranted) {
-      if (mounted) setState(() => _permissionDenied = true);
-      return;
+    // dialog kebenaran pun trigger inactive->resumed, jadi elak init berganda
+    if (_initializing || _disposed) return;
+    _initializing = true;
+    _safeSetState(() {
+      _errorMessage = null;
+      _permissionDenied = false;
+    });
+
+    try {
+      final cameraStatus = await Permission.camera.request();
+      if (!cameraStatus.isGranted) {
+        _safeSetState(() => _permissionDenied = true);
+        return;
+      }
+
+      if (!_tfLiteService.isModelLoaded) {
+        await _tfLiteService.loadModel();
+      }
+      if (!_tfLiteService.isModelLoaded) {
+        throw 'Model AI gagal dimuatkan.';
+      }
+
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        throw 'Tiada kamera dijumpai pada peranti ini.';
+      }
+
+      // pilih kamera BELAKANG
+      _camera = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
+      _sensorRotation = _camera!.sensorOrientation;
+
+      await _startCamera();
+    } catch (e) {
+      debugPrint('❌ Ralat init: $e');
+      _safeSetState(() => _errorMessage = 'Gagal memulakan kamera.\n$e');
+    } finally {
+      _initializing = false;
     }
+  }
 
-    await _tfLiteService.loadModel();
+  // ======================== CAMERA START / STOP ========================
+  Future<void> _startCamera() async {
+    final camera = _camera;
+    if (camera == null || _starting || _cameraController != null || _disposed) return;
+    _starting = true;
 
-    final cameras = await availableCameras();
-    if (cameras.isEmpty) return;
-
-    // pilih kamera BELAKANG
-    final camera = cameras.firstWhere(
-      (c) => c.lensDirection == CameraLensDirection.back,
-      orElse: () => cameras.first,
-    );
-    _sensorRotation = camera.sensorOrientation;
-
-    _cameraController = CameraController(
+    final controller = CameraController(
       camera,
       ResolutionPreset.medium,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
+    _cameraController = controller;
 
-    await _cameraController!.initialize();
-    if (!mounted) return;
-
-    setState(() => _isCameraInitialized = true);
-    await _cameraController!.startImageStream(_onFrame);
+    try {
+      await controller.initialize();
+      if (_disposed || _cameraController != controller) {
+        await controller.dispose();
+        return;
+      }
+      await controller.startImageStream(_onFrame);
+      _safeSetState(() {
+        _isCameraInitialized = true;
+        _errorMessage = null;
+      });
+    } catch (e) {
+      debugPrint('❌ Ralat kamera: $e');
+      if (_cameraController == controller) _cameraController = null;
+      try {
+        await controller.dispose();
+      } catch (_) {}
+      _safeSetState(() {
+        _isCameraInitialized = false;
+        _errorMessage = 'Kamera tidak dapat dibuka. Mungkin sedang digunakan oleh aplikasi lain.\n$e';
+      });
+    } finally {
+      _starting = false;
+    }
   }
 
+  /// Stop stream DULU, baru dispose -> elak crash bila frame masih diproses
+  Future<void> _stopCamera() async {
+    final controller = _cameraController;
+    _cameraController = null;
+    _safeSetState(() => _isCameraInitialized = false);
+    if (controller == null) return;
+
+    try {
+      if (controller.value.isStreamingImages) {
+        await controller.stopImageStream();
+      }
+    } catch (_) {}
+    try {
+      await controller.dispose();
+    } catch (_) {}
+  }
+
+  // ===================== APP MINIMIZE / RESUME =====================
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_disposed) return;
+
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      // app ke background -> lepaskan kamera supaya app lain boleh guna
+      _stopCamera();
+    } else if (state == AppLifecycleState.resumed) {
+      if (_permissionDenied || _camera == null) {
+        // user mungkin baru balik dari Tetapan selepas bagi kebenaran
+        if (!_initializing && !_starting) _initializeSystem();
+      } else {
+        _startCamera();
+      }
+    }
+  }
+
+  // ============================ FRAMES ============================
   Future<void> _onFrame(CameraImage image) async {
     if (_disposed || _isProcessingFrame) return;
 
@@ -85,12 +182,14 @@ class _LiveDetectionViewState extends State<LiveDetectionView> {
   @override
   void dispose() {
     _disposed = true;
-    _cameraController?.dispose();
-    _tfLiteService.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _stopCamera(); // stop stream dulu, kemudian dispose kamera
+    _tfLiteService.dispose(); // tunggu frame semasa siap sebelum tutup model
     _result.dispose();
     super.dispose();
   }
 
+  // ============================== UI ==============================
   String _statusText(DetectionResult r) {
     if (r.detections.isNotEmpty) {
       return r.detections
@@ -111,17 +210,24 @@ class _LiveDetectionViewState extends State<LiveDetectionView> {
 
   @override
   Widget build(BuildContext context) {
+    Widget body;
+    if (_permissionDenied) {
+      body = _buildPermissionDenied();
+    } else if (_errorMessage != null) {
+      body = _buildError(_errorMessage!);
+    } else if (_isCameraInitialized && _cameraController != null) {
+      body = _buildCameraView(_cameraController!);
+    } else {
+      body = _buildLoading();
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('IrisVision - Campus Object Detection'),
         backgroundColor: Colors.blueGrey,
         foregroundColor: Colors.white,
       ),
-      body: _permissionDenied
-          ? _buildPermissionDenied()
-          : (_isCameraInitialized && _cameraController != null)
-              ? _buildCameraView(_cameraController!)
-              : _buildLoading(),
+      body: body,
     );
   }
 
@@ -138,6 +244,27 @@ class _LiveDetectionViewState extends State<LiveDetectionView> {
                 textAlign: TextAlign.center),
             const SizedBox(height: 16),
             ElevatedButton(onPressed: () => openAppSettings(), child: const Text('Buka Tetapan')),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildError(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+            const SizedBox(height: 16),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: (_starting || _initializing) ? null : _initializeSystem,
+              child: const Text('Cuba Lagi'),
+            ),
           ],
         ),
       ),
