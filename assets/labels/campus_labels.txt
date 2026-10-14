@@ -1,0 +1,10 @@
+Door 
+Cabinet Door 
+Refrigerator Door 
+Window 
+Chair 
+Table 
+Cabinet 
+Couch 
+Opened Door 
+Pole

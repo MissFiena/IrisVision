@@ -1,0 +1,28 @@
+name: irisvision
+description: "AI-Powered Mobile Assistant for Visually Impaired Students in Malaysia"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  camera: ^0.10.5+9
+  tflite_flutter: 0.10.1        # kunci tepat, jangan letak ^
+  google_mlkit_text_recognition: ^0.11.0
+  flutter_tts: ^3.8.5
+  speech_to_text: ^7.0.0
+  sqflite: ^2.3.0
+  path_provider: ^2.1.2
+  permission_handler: ^11.3.1
+
+dev_dependencies:
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/models/yolov8n.tflite
+    - assets/labels/campus_labels.txt
