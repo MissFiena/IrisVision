@@ -44,3 +44,14 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 android/build/ 
+
+echo.>> .gitignore
+echo # Firebase config (jangan push)>> .gitignore
+echo lib/firebase_options.dart>> .gitignore
+echo android/app/google-services.json>> .gitignore
+
+# Firebase config (jangan push)
+lib/firebase_options.dart
+android/app/google-services.json
+
+firebase.json

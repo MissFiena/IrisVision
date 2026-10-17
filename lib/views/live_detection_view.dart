@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/tflite_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/common.dart';
 
 class LiveDetectionView extends StatefulWidget {
   const LiveDetectionView({super.key});
@@ -190,156 +192,117 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
   }
 
   // ============================== UI ==============================
-  String _statusText(DetectionResult r) {
-    if (r.detections.isNotEmpty) {
-      return r.detections
-          .map((d) => '${d.label} (${d.position}, ${(d.confidence * 100).toStringAsFixed(0)}%)')
-          .join('\n');
-    }
-    if (r.tooFar) {
-      return 'Objek dikesan tetapi tidak jelas -- sila dekatkan kamera';
-    }
-    return 'Sila halakan kamera ke arah objek kampus (Kerusi, Meja, Sofa, Orang)...';
+  // ============================== UI ==============================
+  /// Nama paparan BM ringkas untuk label model (yang tiada -> huruf kecil biasa).
+  static const Map<String, String> _bm = {
+    'PERSON': 'Orang', 'BICYCLE': 'Basikal', 'CAR': 'Kereta', 'MOTORCYCLE': 'Motosikal',
+    'BUS': 'Bas', 'BENCH': 'Bangku', 'CHAIR': 'Kerusi', 'COUCH': 'Sofa', 'PLANT': 'Pokok pasu',
+    'TABLE': 'Meja', 'REFRIGERATOR': 'Peti sejuk', 'TV': 'TV', 'LAPTOP': 'Laptop',
+    'BACKPACK': 'Beg galas', 'SUITCASE': 'Beg pakaian', 'BOTTLE': 'Botol', 'CUP': 'Cawan',
+    'MOUSE': 'Tetikus', 'KEYBOARD': 'Papan kekunci', 'CELL PHONE': 'Telefon', 'BOOK': 'Buku',
+    'CLOCK': 'Jam', 'SCISSORS': 'Gunting', 'UMBRELLA': 'Payung', 'HANDBAG': 'Beg tangan',
+    'TOILET': 'Tandas', 'SINK': 'Sinki', 'DOG': 'Anjing', 'CAT': 'Kucing',
+  };
+
+  String _name(String label) {
+    final bm = _bm[label];
+    if (bm != null) return bm;
+    final l = label.toLowerCase();
+    return l.isEmpty ? l : l[0].toUpperCase() + l.substring(1);
   }
 
-  Color _statusColor(DetectionResult r) {
-    if (r.detections.isNotEmpty) return Colors.greenAccent;
-    if (r.tooFar) return Colors.amber;
-    return Colors.orangeAccent;
+  /// Ayat yang dipaparkan (dan nanti dibaca oleh TTS).
+  String _sentence(DetectionResult r) {
+    if (r.detections.isNotEmpty) {
+      final parts = r.detections.map((d) => '${_name(d.label)} di ${d.position}').toList();
+      final s = parts.join(', ');
+      return s[0].toUpperCase() + s.substring(1);
+    }
+    if (r.tooFar) return 'Ada objek tetapi tidak jelas. Sila dekatkan kamera.';
+    return 'Halakan kamera ke hadapan...';
   }
 
   @override
   Widget build(BuildContext context) {
-    Widget body;
+    final Widget body;
     if (_permissionDenied) {
-      body = _buildPermissionDenied();
+      body = _buildMessage(
+        icon: Icons.videocam_off_outlined,
+        text: 'Kebenaran kamera diperlukan untuk mengesan objek.',
+        action: 'Buka tetapan',
+        onAction: () => openAppSettings(),
+      );
     } else if (_errorMessage != null) {
-      body = _buildError(_errorMessage!);
+      body = _buildMessage(
+        icon: Icons.error_outline,
+        text: _errorMessage!,
+        action: 'Cuba lagi',
+        onAction: (_starting || _initializing) ? null : _initializeSystem,
+      );
     } else if (_isCameraInitialized && _cameraController != null) {
       body = _buildCameraView(_cameraController!);
     } else {
-      body = _buildLoading();
+      body = _buildMessage(icon: null, text: 'Memuatkan kamera dan model AI...');
     }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('IrisVision - Campus Object Detection'),
-        backgroundColor: Colors.blueGrey,
-        foregroundColor: Colors.white,
-      ),
-      body: body,
-    );
+    return Scaffold(body: body);
   }
 
-  Widget _buildPermissionDenied() {
-    return Center(
+  Widget _buildMessage({IconData? icon, required String text, String? action, VoidCallback? onAction}) {
+    final p = context.pal;
+    return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.videocam_off, size: 48, color: Colors.redAccent),
-            const SizedBox(height: 16),
-            const Text('Kebenaran kamera diperlukan untuk pengesanan objek.',
-                textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            ElevatedButton(onPressed: () => openAppSettings(), child: const Text('Buka Tetapan')),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildError(String message) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
-            const SizedBox(height: 16),
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: (_starting || _initializing) ? null : _initializeSystem,
-              child: const Text('Cuba Lagi'),
+            const TopBar(title: Headline('Kesan Objek', size: 24)),
+            const Spacer(),
+            if (icon == null)
+              const Center(child: CircularProgressIndicator())
+            else
+              Center(
+                child: Container(
+                  width: 112,
+                  height: 112,
+                  decoration: BoxDecoration(color: p.tint, shape: BoxShape.circle),
+                  child: Icon(icon, size: 56, color: p.accent),
+                ),
+              ),
+            const SizedBox(height: 20),
+            Semantics(
+              liveRegion: true,
+              child: Text(text, textAlign: TextAlign.center, style: TextStyle(fontSize: 19, height: 1.4, color: p.textPrimary)),
             ),
+            const Spacer(),
+            if (action != null) BadgeButton(label: action, badgeIcon: Icons.refresh, onPressed: onAction),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildLoading() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
-          Text('Memuatkan Kamera & Model AI...'),
-        ],
       ),
     );
   }
 
   Widget _buildCameraView(CameraController controller) {
+    final p = context.pal;
     // mod portrait: nisbah preview = 1 / nisbah landscape kamera
     final double previewAspect = 1 / controller.value.aspectRatio;
 
     return Stack(
       children: [
+        Positioned.fill(child: Container(color: Colors.black)),
         // Preview + kotak dalam widget yang SAMA saiz -> kotak sentiasa sejajar
         Positioned.fill(
-          child: Center(
+          child: Align(
+            alignment: Alignment.topCenter,
             child: AspectRatio(
               aspectRatio: previewAspect,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  CameraPreview(controller),
+                  ExcludeSemantics(child: CameraPreview(controller)),
                   ValueListenableBuilder<DetectionResult>(
                     valueListenable: _result,
-                    builder: (context, r, _) =>
-                        CustomPaint(painter: _BoxPainter(r.detections)),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-
-        // badge latency
-        Positioned(
-          top: 16,
-          left: 16,
-          child: ValueListenableBuilder<DetectionResult>(
-            valueListenable: _result,
-            builder: (context, r, _) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration:
-                  BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(8)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.circle, color: Colors.greenAccent, size: 10),
-                      SizedBox(width: 6),
-                      Text('YOLOv8 Active',
-                          style: TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Latency: ${r.latencyMs} ms (Limit: ≤1500 ms)',
-                    style: TextStyle(
-                      color: r.latencyMs <= 1500 ? Colors.greenAccent : Colors.redAccent,
-                      fontSize: 11,
+                    builder: (context, r, _) => CustomPaint(
+                      painter: _BoxPainter(r.detections, _name, p.highlight, p.onHighlight),
                     ),
                   ),
                 ],
@@ -347,33 +310,151 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
             ),
           ),
         ),
-
-        // status teks bawah
+        // butang kembali + latency
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const BackSquare(),
+                const Spacer(),
+                ValueListenableBuilder<DetectionResult>(
+                  valueListenable: _result,
+                  builder: (context, r, _) {
+                    final ok = r.latencyMs <= 1500;
+                    return Semantics(
+                      label: 'Kelajuan ${r.latencyMs} milisaat',
+                      excludeSemantics: true,
+                      child: Container(
+                        height: 40,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(20)),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(color: ok ? p.success : p.error, shape: BoxShape.circle),
+                            ),
+                            const SizedBox(width: 8),
+                            Text('${r.latencyMs} ms',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: p.textPrimary)),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        // panel bawah: ayat + KIRI / TENGAH / KANAN
         Positioned(
-          bottom: 32,
-          left: 16,
-          right: 16,
+          left: 0,
+          right: 0,
+          bottom: 0,
           child: ValueListenableBuilder<DetectionResult>(
             valueListenable: _result,
-            builder: (context, r, _) {
-              final color = _statusColor(r);
-              return Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.black87,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color, width: 2),
-                ),
-                child: Text(
-                  _statusText(r),
-                  style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-              );
-            },
+            builder: (context, r, _) => _ResultPanel(
+              sentence: _sentence(r),
+              left: _firstAt(r, 'kiri'),
+              center: _firstAt(r, 'tengah'),
+              right: _firstAt(r, 'kanan'),
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  String? _firstAt(DetectionResult r, String pos) {
+    for (final d in r.detections) {
+      if (d.position == pos) return _name(d.label);
+    }
+    return null;
+  }
+}
+
+class _ResultPanel extends StatelessWidget {
+  final String sentence;
+  final String? left, center, right;
+  const _ResultPanel({required this.sentence, this.left, this.center, this.right});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.pal;
+    Widget cell(String pos, String? name) => Expanded(
+          child: Container(
+            height: 68,
+            decoration: BoxDecoration(
+              color: name == null ? p.surfaceAlt : p.tint,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(pos, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: p.textSecondary, letterSpacing: 0.5)),
+                const SizedBox(height: 2),
+                Text(
+                  name ?? '–',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: name == null ? p.textSecondary : p.accent),
+                ),
+              ],
+            ),
+          ),
+        );
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 48,
+                height: 5,
+                decoration: BoxDecoration(color: p.border, borderRadius: BorderRadius.circular(3)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text('Di hadapan anda', style: TextStyle(fontSize: 15, color: p.textSecondary)),
+            const SizedBox(height: 2),
+            // liveRegion: TalkBack baca bila ayat berubah
+            Semantics(
+              liveRegion: true,
+              child: Text(
+                sentence,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontFamily: AppFonts.heading, fontSize: 24, fontWeight: FontWeight.w700, height: 1.2, color: p.textPrimary),
+              ),
+            ),
+            const SizedBox(height: 14),
+            ExcludeSemantics(
+              child: Row(
+                children: [
+                  cell('KIRI', left),
+                  const SizedBox(width: 8),
+                  cell('TENGAH', center),
+                  const SizedBox(width: 8),
+                  cell('KANAN', right),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -382,14 +463,17 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
 /// jadi cuma darab dengan saiz canvas (tak perlu rotate lagi).
 class _BoxPainter extends CustomPainter {
   final List<Detection> detections;
-  _BoxPainter(this.detections);
+  final String Function(String) nameOf;
+  final Color boxColor;
+  final Color labelColor;
+  _BoxPainter(this.detections, this.nameOf, this.boxColor, this.labelColor);
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.greenAccent
+      ..color = boxColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
+      ..strokeWidth = 4;
 
     for (final d in detections) {
       final rect = Rect.fromLTRB(
@@ -398,23 +482,24 @@ class _BoxPainter extends CustomPainter {
         d.right * size.width,
         d.bottom * size.height,
       );
-      canvas.drawRect(rect, paint);
+      canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(14)), paint);
 
       final tp = TextPainter(
         text: TextSpan(
-          text: ' ${d.label} ${(d.confidence * 100).toStringAsFixed(0)}% ',
-          style: const TextStyle(
-            color: Colors.black,
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            backgroundColor: Colors.greenAccent,
+          text: ' ${nameOf(d.label)} ${(d.confidence * 100).toStringAsFixed(0)}% ',
+          style: TextStyle(
+            color: labelColor,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            fontFamily: AppFonts.body,
+            backgroundColor: boxColor,
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
 
       final double dy = rect.top - tp.height < 0 ? rect.top : rect.top - tp.height;
-      tp.paint(canvas, Offset(rect.left, dy));
+      tp.paint(canvas, Offset(rect.left + 6, dy));
     }
   }
 
