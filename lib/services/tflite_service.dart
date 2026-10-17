@@ -24,7 +24,7 @@ const Duration kFrameTimeout = Duration(seconds: 3);
 
 // true  = hanya objek kampus dalam senarai kAllowedCoco (kurangkan false positive)
 // false = semua 80 kelas COCO (guna untuk test dengan kucing, mouse, dll)
-const bool kUseWhitelist = true;
+const bool kUseWhitelist = false;
 
 // true  = hantar input sebagai bytes (LAJU).
 // Kalau keluar error "Input error" masa run, tukar jadi false.
