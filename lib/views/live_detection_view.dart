@@ -286,8 +286,9 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
     // mod portrait: nisbah preview = 1 / nisbah landscape kamera
     final double previewAspect = 1 / controller.value.aspectRatio;
 
-    return Stack(
-      children: [
+    return SizedBox.expand(
+      child: Stack(
+        children: [
         Positioned.fill(child: Container(color: Colors.black)),
         // Preview + kotak dalam widget yang SAMA saiz -> kotak sentiasa sejajar
         Positioned.fill(
@@ -366,6 +367,7 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
           ),
         ),
       ],
+      ),
     );
   }
 
