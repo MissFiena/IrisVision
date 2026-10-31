@@ -42,4 +42,11 @@
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
+
+    <!-- Android 11+: perlu untuk flutter_tts cari enjin suara dalam telefon -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
 </manifest>

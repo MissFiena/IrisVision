@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import '../live_detection_view.dart';
 import '../profile/profile_view.dart';
+import '../scan/scan_text_view.dart';
 
 /// C4 · Utama.
 /// Skrin belah dua: ATAS = Kesan Objek, BAWAH = Imbas Teks.
@@ -116,7 +117,7 @@ class HomeView extends StatelessWidget {
                       foreground: p.onHighlight,
                       iconBox: p.surface,
                       iconColor: p.textPrimary,
-                      onTap: () => _soon(context, 'Imbas Teks'),
+                      onTap: () => _open(context, const ScanTextView()),
                     ),
                   ),
                   const SizedBox(height: 110), // ruang untuk dok
