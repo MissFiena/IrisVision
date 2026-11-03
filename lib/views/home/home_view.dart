@@ -4,11 +4,13 @@ import '../../services/app_settings.dart';
 import '../../services/auth_service.dart';
 import '../../services/lang.dart';
 import '../../services/tts_service.dart';
+import '../../services/voice_command_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import '../live_detection_view.dart';
 import '../profile/profile_view.dart';
 import '../scan/scan_text_view.dart';
+import '../voice/voice_command_sheet.dart';
 
 /// C4 · Utama.
 /// Skrin belah dua: ATAS = Kesan Objek, BAWAH = Imbas Teks.
@@ -63,6 +65,83 @@ class _HomeBody extends StatelessWidget {
     if (context.mounted) {
       TtsService.instance.announceScreen(context, 'Skrin utama.', 'Home screen.');
     }
+  }
+
+  // ============================ ARAHAN SUARA ============================
+  Future<void> _voice(BuildContext context) async {
+    final result = await showVoiceCommandSheet(context);
+    if (!context.mounted) return;
+    final tts = TtsService.instance;
+    if (result == null) {
+      tts.announce('Tiada suara didengar. Tekan butang mikrofon dan cuba lagi.',
+          'No voice heard. Press the microphone button and try again.');
+      return;
+    }
+    final s = AppSettings.instance;
+    switch (result.action) {
+      case VoiceAction.detect:
+        _open(context, const LiveDetectionView()); // skrin itu umumkan dirinya
+      case VoiceAction.scan:
+        _open(context, const ScanTextView());
+      case VoiceAction.profile:
+        tts.announce('Membuka profil.', 'Opening profile.');
+        _open(context, const ProfileView());
+      case VoiceAction.history:
+        _soon(context, t('Sejarah', 'History'));
+      case VoiceAction.langBm:
+        s.language.value = VoiceLanguage.bm;
+        tts.say('Bahasa Melayu dipilih.', lang: TextLang.bm, remember: false);
+      case VoiceAction.langEn:
+        s.language.value = VoiceLanguage.en;
+        tts.say('English selected.', lang: TextLang.en, remember: false);
+      case VoiceAction.faster:
+      case VoiceAction.slower:
+        final up = result.action == VoiceAction.faster;
+        final r = (s.speechRate.value + (up ? 0.25 : -0.25)).clamp(0.5, 1.5);
+        s.speechRate.value = r;
+        tts.say(s.speechRateLabel(r), lang: tts.uiLang, remember: false);
+      case VoiceAction.repeat:
+        tts.repeatLast();
+      case VoiceAction.time:
+        tts.announce(_timeBm(), _timeEn());
+      case VoiceAction.help:
+        tts.announce(
+          'Anda boleh sebut: kesan objek, imbas teks, profil, sejarah, bahasa Inggeris, bahasa Melayu, '
+              'lebih laju, lebih perlahan, ulang, atau pukul berapa.',
+          'You can say: detect object, scan text, profile, history, English, Malay, '
+              'faster, slower, repeat, or what time.',
+        );
+      case VoiceAction.cancelled:
+        break; // panel sudah sebut "Dibatalkan"
+      case VoiceAction.unknown:
+        tts.announce(
+          'Maaf, saya tidak faham "${result.words}". Sebut bantuan untuk senarai arahan.',
+          'Sorry, I did not understand "${result.words}". Say help for the list of commands.',
+          remember: false,
+        );
+    }
+  }
+
+  static String _timeBm() {
+    final n = DateTime.now();
+    final h = n.hour;
+    final h12 = h % 12 == 0 ? 12 : h % 12;
+    final m = n.minute.toString().padLeft(2, '0');
+    final when = h < 12
+        ? 'pagi'
+        : h < 14
+            ? 'tengah hari'
+            : h < 19
+                ? 'petang'
+                : 'malam';
+    return 'Sekarang pukul $h12.$m $when.';
+  }
+
+  static String _timeEn() {
+    final n = DateTime.now();
+    final h12 = n.hour % 12 == 0 ? 12 : n.hour % 12;
+    final m = n.minute.toString().padLeft(2, '0');
+    return 'It is $h12:$m ${n.hour < 12 ? 'AM' : 'PM'}.';
   }
 
   @override
@@ -168,7 +247,7 @@ class _HomeBody extends StatelessWidget {
               bottom: 16,
               child: _Dock(
                 onHistory: () => _soon(context, t('Sejarah', 'History')),
-                onVoice: () => _soon(context, t('Arahan suara', 'Voice command')),
+                onVoice: () => _voice(context),
                 onHelp: () => _soon(context, t('Bantuan', 'Help')),
                 onProfile: () => _open(context, const ProfileView()),
               ),

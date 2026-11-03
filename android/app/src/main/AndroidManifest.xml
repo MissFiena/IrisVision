@@ -44,10 +44,14 @@
             android:value="2" />
     </application>
 
-    <!-- Android 11+: perlu untuk flutter_tts cari enjin suara dalam telefon -->
+    <!-- Android 11+: perlu supaya app boleh cari enjin suara (TTS) dan enjin dengar (STT) dalam telefon -->
     <queries>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <!-- speech_to_text: cari enjin pengecaman suara (arahan suara) -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 </manifest>
