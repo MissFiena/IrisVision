@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/lang.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import 'auth/verify_email_view.dart';
@@ -60,7 +61,7 @@ class SplashView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Semantics(
-        label: 'IrisVision sedang dibuka',
+        label: context.tr('IrisVision sedang dibuka', 'IrisVision is opening'),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,

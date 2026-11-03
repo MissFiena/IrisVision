@@ -1,3 +1,5 @@
+import '../services/lang.dart';
+
 /// Validasi input di sisi klien.
 ///
 /// Nota keselamatan: validasi klien hanya untuk UX (mesej cepat & jelas).
@@ -26,18 +28,18 @@ class Validators {
 
   static String? name(String? value) {
     final v = (value ?? '').trim();
-    if (v.isEmpty) return 'Sila masukkan nama penuh.';
-    if (v.length < 2) return 'Nama terlalu pendek.';
-    if (v.length > nameMax) return 'Nama maksimum $nameMax aksara.';
-    if (!_name.hasMatch(v)) return 'Nama hanya boleh mengandungi huruf.';
+    if (v.isEmpty) return t('Sila masukkan nama penuh.', 'Please enter your full name.');
+    if (v.length < 2) return t('Nama terlalu pendek.', 'Name is too short.');
+    if (v.length > nameMax) return t('Nama maksimum $nameMax aksara.', 'Name can be at most $nameMax characters.');
+    if (!_name.hasMatch(v)) return t('Nama hanya boleh mengandungi huruf.', 'Name can only contain letters.');
     return null;
   }
 
   static String? email(String? value) {
     final v = (value ?? '').trim();
-    if (v.isEmpty) return 'Sila masukkan e-mel.';
+    if (v.isEmpty) return t('Sila masukkan e-mel.', 'Please enter your email.');
     if (v.length > 254 || !_email.hasMatch(v)) {
-      return 'Format e-mel tidak sah. Contoh: nama@gmail.com';
+      return t('Format e-mel tidak sah. Contoh: nama@gmail.com', 'Invalid email format. Example: name@gmail.com');
     }
     return null;
   }
@@ -45,37 +47,37 @@ class Validators {
   /// Untuk skrin log masuk: cuma pastikan tak kosong. Jangan dedahkan
   /// polisi kata laluan di sini.
   static String? loginPassword(String? value) {
-    if ((value ?? '').isEmpty) return 'Sila masukkan kata laluan.';
+    if ((value ?? '').isEmpty) return t('Sila masukkan kata laluan.', 'Please enter your password.');
     return null;
   }
 
   /// Untuk daftar akaun baharu.
   static String? newPassword(String? value, {String? email}) {
     final v = value ?? '';
-    if (v.isEmpty) return 'Sila cipta kata laluan.';
+    if (v.isEmpty) return t('Sila cipta kata laluan.', 'Please create a password.');
     if (v.length < passwordMin) {
-      return 'Kata laluan mesti sekurang-kurangnya $passwordMin aksara.';
+      return t('Kata laluan mesti sekurang-kurangnya $passwordMin aksara.', 'Password must be at least $passwordMin characters.');
     }
     if (v.length > passwordMax) {
-      return 'Kata laluan maksimum $passwordMax aksara.';
+      return t('Kata laluan maksimum $passwordMax aksara.', 'Password can be at most $passwordMax characters.');
     }
-    if (v.trim() != v) return 'Kata laluan tidak boleh bermula atau berakhir dengan ruang.';
+    if (v.trim() != v) return t('Kata laluan tidak boleh bermula atau berakhir dengan ruang.', 'Password cannot start or end with a space.');
     if (_commonPasswords.contains(v.toLowerCase())) {
-      return 'Kata laluan ini terlalu biasa dan mudah diteka. Sila pilih yang lain.';
+      return t('Kata laluan ini terlalu biasa dan mudah diteka. Sila pilih yang lain.', 'This password is too common and easy to guess. Please choose another.');
     }
     final localPart = (email ?? '').split('@').first.toLowerCase();
     if (localPart.length >= 4 && v.toLowerCase().contains(localPart)) {
-      return 'Kata laluan tidak boleh mengandungi nama e-mel anda.';
+      return t('Kata laluan tidak boleh mengandungi nama e-mel anda.', 'Password cannot contain your email name.');
     }
     if (!RegExp(r'[A-Za-z]').hasMatch(v) || !RegExp(r'[0-9]').hasMatch(v)) {
-      return 'Kata laluan mesti ada sekurang-kurangnya satu huruf dan satu nombor.';
+      return t('Kata laluan mesti ada sekurang-kurangnya satu huruf dan satu nombor.', 'Password needs at least one letter and one number.');
     }
     return null;
   }
 
   static String? confirmPassword(String? value, String original) {
-    if ((value ?? '').isEmpty) return 'Sila taip semula kata laluan.';
-    if (value != original) return 'Kata laluan tidak sama.';
+    if ((value ?? '').isEmpty) return t('Sila taip semula kata laluan.', 'Please type your password again.');
+    if (value != original) return t('Kata laluan tidak sama.', 'Passwords do not match.');
     return null;
   }
 }

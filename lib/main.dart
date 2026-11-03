@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'firebase_options.dart'; // dijana oleh: flutterfire configure
 import 'services/app_settings.dart';
+import 'services/lang.dart';
 import 'theme/app_theme.dart';
 import 'views/auth_gate.dart';
 import 'widgets/common.dart';
@@ -28,6 +29,11 @@ class IrisVisionApp extends StatelessWidget {
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
         themeMode: mode,
+        // Bahasa app: semua skrin dibina semula bila BM/EN ditukar
+        builder: (context, child) => ValueListenableBuilder<VoiceLanguage>(
+          valueListenable: AppSettings.instance.language,
+          builder: (context, lang, _) => LangScope(lang: lang, child: child ?? const SizedBox()),
+        ),
         home: const _Bootstrap(),
       ),
     );
@@ -68,14 +74,15 @@ class _BootstrapState extends State<_Bootstrap> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      'IrisVision tidak dapat dimulakan. Sila cuba lagi.',
+                    Text(
+                      context.tr('IrisVision tidak dapat dimulakan. Sila cuba lagi.',
+                          'IrisVision could not start. Please try again.'),
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 20),
+                      style: const TextStyle(fontSize: 20),
                     ),
                     const SizedBox(height: 24),
                     BadgeButton(
-                      label: 'Cuba lagi',
+                      label: context.tr('Cuba lagi', 'Try again'),
                       badgeIcon: Icons.refresh,
                       onPressed: () => setState(() => _init = _start()),
                     ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/ocr_service.dart';
+import '../../services/lang.dart';
 import '../../services/tts_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
@@ -42,7 +43,7 @@ class _ScanResultViewState extends State<ScanResultView> {
     final run = ++_runId;
     _set(() => _playing = true);
     await _tts.speak(
-      bm ? 'Teks dijumpai. $n bahagian.' : 'Text found. $n ${n == 1 ? 'section' : 'sections'}.',
+      bm ? 'Teks dijumpai. $n perenggan.' : 'Text found. $n ${n == 1 ? 'paragraph' : 'paragraphs'}.',
       lang: _tts.uiLang,
     );
     if (run == _runId && !_disposed) _playFrom(0);
@@ -65,7 +66,14 @@ class _ScanResultViewState extends State<ScanResultView> {
       if (run != _runId || _disposed) return; // dibatalkan
       _set(() => _index = i);
       _scrollTo(i);
+      final before = _tts.interruptions;
       await _tts.speak(_blocks[i].text);
+      if (_tts.interruptions != before) {
+        // pengguna ketik butang lain semasa membaca -> berhenti di sini
+        _runId++;
+        _set(() => _playing = false);
+        return;
+      }
     }
 
     if (run != _runId || _disposed) return;
@@ -78,6 +86,7 @@ class _ScanResultViewState extends State<ScanResultView> {
     _runId++; // batalkan gelung
     await _tts.stop();
     _set(() => _playing = false);
+    _tts.speak(t('Jeda.', 'Paused.'), lang: _tts.uiLang, remember: false);
   }
 
   void _togglePlay() {
@@ -122,14 +131,17 @@ class _ScanResultViewState extends State<ScanResultView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: TopBar(title: Headline('Teks Dijumpai', size: 24)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: TopBar(title: Headline(context.tr('Teks Dijumpai', 'Text Found'), size: 24)),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
-                '${_blocks.length} bahagian · ${r.wordCount} perkataan · ${r.latencyMs} ms',
+                context.tr(
+                  '${_blocks.length} perenggan · ${r.wordCount} perkataan · ${r.latencyMs} ms',
+                  '${_blocks.length} paragraphs · ${r.wordCount} words · ${r.latencyMs} ms',
+                ),
                 style: TextStyle(fontSize: 15, color: p.textSecondary),
               ),
             ),
@@ -190,8 +202,8 @@ class _BlockCard extends StatelessWidget {
     return Semantics(
       button: true,
       selected: active,
-      label: 'Bahagian $number daripada $total. $text',
-      hint: 'Ketik dua kali untuk baca dari sini',
+      label: context.tr('Perenggan $number daripada $total. $text', 'Paragraph $number of $total. $text'),
+      hint: context.tr('Ketik dua kali untuk baca dari sini', 'Double tap to read from here'),
       excludeSemantics: true,
       onTap: onTap,
       child: Material(
@@ -298,13 +310,13 @@ class _Controls extends StatelessWidget {
       ),
       child: Row(
         children: [
-          side(Icons.skip_previous_rounded, 'Sebelum', canPrev, onPrev),
+          side(Icons.skip_previous_rounded, context.tr('Sebelum', 'Previous'), canPrev, onPrev),
           const SizedBox(width: 12),
           Expanded(
             flex: 2,
             child: Semantics(
               button: true,
-              label: playing ? 'Jeda' : 'Main',
+              label: playing ? context.tr('Jeda', 'Pause') : context.tr('Main', 'Play'),
               excludeSemantics: true,
               onTap: onToggle,
               child: Material(
@@ -313,6 +325,7 @@ class _Controls extends StatelessWidget {
                 elevation: 3,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(22),
+                  // Main/Jeda bertindak SERTA-MERTA (ketik sekali): jeda mesti segera
                   onTap: onToggle,
                   child: SizedBox(
                     height: 76,
@@ -328,7 +341,7 @@ class _Controls extends StatelessWidget {
                         ),
                         const SizedBox(width: 12),
                         Text(
-                          playing ? 'Jeda' : 'Main',
+                          playing ? context.tr('Jeda', 'Pause') : context.tr('Main', 'Play'),
                           style: TextStyle(
                               fontFamily: AppFonts.heading, fontSize: 21, fontWeight: FontWeight.w700, color: p.onPrimary),
                         ),
@@ -340,7 +353,7 @@ class _Controls extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          side(Icons.skip_next_rounded, 'Seterusnya', canNext, onNext),
+          side(Icons.skip_next_rounded, context.tr('Seterusnya', 'Next'), canNext, onNext),
         ],
       ),
     );

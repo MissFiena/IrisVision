@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
+import '../../services/lang.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/validators.dart';
 import '../../widgets/common.dart';
@@ -56,10 +57,11 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
             children: [
               const TopBar(),
               const SizedBox(height: 18),
-              const Headline('Lupa kata laluan?'),
+              Headline(context.tr('Lupa kata laluan?', 'Forgot password?')),
               const SizedBox(height: 8),
               Text(
-                'Masukkan e-mel akaun anda. Kami hantar pautan untuk cipta kata laluan baharu.',
+                context.tr('Masukkan e-mel akaun anda. Kami hantar pautan untuk cipta kata laluan baharu.',
+                    'Enter your account email. We will send a link to create a new password.'),
                 style: TextStyle(fontSize: 18, height: 1.4, color: p.textSecondary),
               ),
               const SizedBox(height: 24),
@@ -69,10 +71,12 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
               ],
               if (_sent) ...[
                 // Mesej sama sama ada e-mel wujud atau tidak (elak account enumeration)
-                const StatusBanner(
+                StatusBanner(
                   isError: false,
-                  message: 'Jika e-mel ini berdaftar, pautan tetapan semula telah dihantar. '
-                      'Semak peti masuk dan folder spam.',
+                  message: context.tr(
+                    'Jika e-mel ini berdaftar, pautan tetapan semula telah dihantar. Semak peti masuk dan folder spam.',
+                    'If this email is registered, a reset link has been sent. Check your inbox and spam folder.',
+                  ),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -85,11 +89,14 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                 style: const TextStyle(fontSize: 20),
                 validator: Validators.email,
                 onFieldSubmitted: (_) => _submit(),
-                decoration: const InputDecoration(labelText: 'E-mel', prefixIcon: Icon(Icons.email_outlined)),
+                decoration: InputDecoration(
+                  labelText: context.tr('E-mel', 'Email'),
+                  prefixIcon: const Icon(Icons.email_outlined),
+                ),
               ),
               const SizedBox(height: 24),
               BadgeButton(
-                label: _sent ? 'Hantar semula' : 'Hantar pautan',
+                label: _sent ? context.tr('Hantar semula', 'Send again') : context.tr('Hantar pautan', 'Send link'),
                 badgeIcon: Icons.send,
                 loading: _loading,
                 onPressed: _submit,

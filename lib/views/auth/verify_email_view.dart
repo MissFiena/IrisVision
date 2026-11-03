@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
+import '../../services/lang.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 
@@ -79,7 +80,8 @@ class _VerifyEmailViewState extends State<VerifyEmailView> with WidgetsBindingOb
       HapticFeedback.heavyImpact();
       setState(() {
         _isError = true;
-        _message = 'E-mel belum disahkan. Sila tekan pautan dalam e-mel dahulu.';
+        _message = t('E-mel belum disahkan. Sila tekan pautan dalam e-mel dahulu.',
+            'Email not verified yet. Please tap the link in the email first.');
       });
     }
   }
@@ -89,7 +91,7 @@ class _VerifyEmailViewState extends State<VerifyEmailView> with WidgetsBindingOb
     if (!mounted) return;
     setState(() {
       _isError = !r.ok;
-      _message = r.ok ? 'E-mel pengesahan telah dihantar semula.' : r.message;
+      _message = r.ok ? t('E-mel pengesahan telah dihantar semula.', 'Verification email sent again.') : r.message;
     });
     if (r.ok) setState(_startCooldown);
   }
@@ -114,22 +116,26 @@ class _VerifyEmailViewState extends State<VerifyEmailView> with WidgetsBindingOb
               ),
             ),
             const SizedBox(height: 24),
-            const Center(child: Headline('Semak e-mel anda', size: 28)),
+            Center(child: Headline(context.tr('Semak e-mel anda', 'Check your email'), size: 28)),
             const SizedBox(height: 10),
             Text(
-              'Kami telah hantar pautan pengesahan ke $email. '
-              'Tekan pautan itu, dan IrisVision akan terus dibuka.',
+              context.tr(
+                'Kami telah hantar pautan pengesahan ke $email. Tekan pautan itu, dan IrisVision akan terus dibuka.',
+                'We sent a verification link to $email. Tap the link and IrisVision will open straight away.',
+              ),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 18, height: 1.45, color: p.textSecondary),
             ),
             const SizedBox(height: 20),
             StatusBanner(
-              message: _message ?? 'App semak secara automatik setiap 5 saat. Tak perlu tekan apa-apa.',
+              message: _message ??
+                  context.tr('App semak secara automatik setiap 5 saat. Tak perlu tekan apa-apa.',
+                      'The app checks automatically every 5 seconds. No need to tap anything.'),
               isError: _message != null && _isError,
             ),
             const SizedBox(height: 24),
             BadgeButton(
-              label: 'Saya sudah sahkan',
+              label: context.tr('Saya sudah sahkan', 'I have verified'),
               badgeIcon: Icons.check,
               loading: _checking,
               onPressed: () => _check(),
@@ -137,14 +143,18 @@ class _VerifyEmailViewState extends State<VerifyEmailView> with WidgetsBindingOb
             const SizedBox(height: 12),
             Center(
               child: TextButton(
-                onPressed: _cooldown > 0 ? null : _resend,
-                child: Text(_cooldown > 0 ? 'Hantar semula dalam $_cooldown saat' : 'Hantar semula e-mel'),
+                onPressed: _cooldown > 0
+                    ? null
+                    : _resend,
+                child: Text(_cooldown > 0
+                    ? context.tr('Hantar semula dalam $_cooldown saat', 'Resend in $_cooldown seconds')
+                    : context.tr('Hantar semula e-mel', 'Resend email')),
               ),
             ),
             Center(
               child: TextButton(
                 onPressed: () => _auth.signOut(),
-                child: const Text('Guna e-mel lain / Log keluar'),
+                child: Text(context.tr('Guna e-mel lain / Log keluar', 'Use another email / Sign out')),
               ),
             ),
           ],

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'lang.dart';
 
 /// Hasil operasi auth: berjaya, atau mesej ralat yang selamat untuk dipaparkan.
 class AuthResult {
@@ -59,7 +60,7 @@ class AuthService {
       return AuthResult.failure(_message(e, isRegister: true));
     } catch (e) {
       debugPrint('register error: $e');
-      return const AuthResult.failure(_genericError);
+      return AuthResult.failure(_genericError);
     }
   }
 
@@ -74,7 +75,7 @@ class AuthService {
       return AuthResult.failure(_message(e));
     } catch (e) {
       debugPrint('signIn error: $e');
-      return const AuthResult.failure(_genericError);
+      return AuthResult.failure(_genericError);
     }
   }
 
@@ -91,16 +92,16 @@ class AuthService {
       return const AuthResult.success();
     } on FirebaseAuthException catch (e) {
       if (e.code == 'web-context-canceled' || e.code == 'canceled' || e.code == 'popup-closed-by-user') {
-        return const AuthResult.failure('Log masuk Google dibatalkan.');
+        return AuthResult.failure(t('Log masuk Google dibatalkan.', 'Google sign in was cancelled.'));
       }
       if (e.code == 'account-exists-with-different-credential') {
-        return const AuthResult.failure(
-            'E-mel ini sudah didaftar dengan kata laluan. Sila log masuk dengan e-mel.');
+        return AuthResult.failure(t('E-mel ini sudah didaftar dengan kata laluan. Sila log masuk dengan e-mel.',
+            'This email is already registered with a password. Please sign in with email.'));
       }
       return AuthResult.failure(_message(e));
     } catch (e) {
       debugPrint('google error: $e');
-      return const AuthResult.failure(_genericError);
+      return AuthResult.failure(_genericError);
     }
   }
 
@@ -124,7 +125,7 @@ class AuthService {
       return const AuthResult.success();
     } catch (e) {
       debugPrint('reset error: $e');
-      return const AuthResult.failure(_genericError);
+      return AuthResult.failure(_genericError);
     }
   }
 
@@ -133,7 +134,7 @@ class AuthService {
   // --------------------------------------------------------------------------
   Future<AuthResult> resendVerification() async {
     final user = _auth.currentUser;
-    if (user == null) return const AuthResult.failure(_genericError);
+    if (user == null) return AuthResult.failure(_genericError);
     try {
       await user.sendEmailVerification();
       return const AuthResult.success();
@@ -185,7 +186,7 @@ class AuthService {
   // --------------------------------------------------------------------------
   // MESEJ RALAT
   // --------------------------------------------------------------------------
-  static const String _genericError = 'Ralat tidak dijangka. Sila cuba lagi.';
+  static String get _genericError => t('Ralat tidak dijangka. Sila cuba lagi.', 'Unexpected error. Please try again.');
 
   Future<void> _sendVerificationSafely(User user) async {
     try {
@@ -203,22 +204,26 @@ class AuthService {
       case 'invalid-login-credentials':
       case 'wrong-password':
       case 'user-not-found':
-        return 'E-mel atau kata laluan tidak betul.';
+        return t('E-mel atau kata laluan tidak betul.', 'Email or password is incorrect.');
       case 'invalid-email':
-        return 'Format e-mel tidak sah.';
+        return t('Format e-mel tidak sah.', 'Invalid email format.');
       case 'user-disabled':
-        return 'Akaun ini telah disekat. Sila hubungi pentadbir.';
+        return t('Akaun ini telah disekat. Sila hubungi pentadbir.', 'This account has been blocked. Please contact the administrator.');
       case 'email-already-in-use':
-        return 'Tidak dapat mendaftar dengan e-mel ini. Cuba log masuk atau guna "Lupa kata laluan".';
+        return t('Tidak dapat mendaftar dengan e-mel ini. Cuba log masuk atau guna "Lupa kata laluan".',
+            'Cannot register with this email. Try signing in or use "Forgot password".');
       case 'weak-password':
       case 'password-does-not-meet-requirements':
-        return 'Kata laluan terlalu lemah. Sila guna sekurang-kurangnya 8 aksara dengan huruf dan nombor.';
+        return t('Kata laluan terlalu lemah. Sila guna sekurang-kurangnya 8 aksara dengan huruf dan nombor.',
+            'Password is too weak. Use at least 8 characters with letters and numbers.');
       case 'too-many-requests':
-        return 'Terlalu banyak cubaan. Untuk keselamatan, sila tunggu beberapa minit dan cuba lagi.';
+        return t('Terlalu banyak cubaan. Untuk keselamatan, sila tunggu beberapa minit dan cuba lagi.',
+            'Too many attempts. For security, please wait a few minutes and try again.');
       case 'network-request-failed':
-        return 'Tiada sambungan internet. Log masuk kali pertama memerlukan internet.';
+        return t('Tiada sambungan internet. Log masuk kali pertama memerlukan internet.',
+            'No internet connection. The first sign in needs internet.');
       case 'operation-not-allowed':
-        return 'Log masuk e-mel belum diaktifkan. Sila hubungi pentadbir.';
+        return t('Log masuk e-mel belum diaktifkan. Sila hubungi pentadbir.', 'Email sign in is not enabled. Please contact the administrator.');
       default:
         debugPrint('FirebaseAuthException: ${e.code}');
         return _genericError;

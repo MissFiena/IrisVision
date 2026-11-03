@@ -2,6 +2,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../services/lang.dart';
 import '../../services/ocr_service.dart';
 import '../../services/tts_service.dart';
 import '../../theme/app_theme.dart';
@@ -59,25 +60,22 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
         return;
       }
       final cams = await availableCameras();
-      if (cams.isEmpty) throw 'Tiada kamera dijumpai pada peranti ini.';
+      if (cams.isEmpty) throw t('Tiada kamera dijumpai pada peranti ini.', 'No camera found on this device.');
       _camera = cams.firstWhere((c) => c.lensDirection == CameraLensDirection.back, orElse: () => cams.first);
       await _startCamera();
       _announce(); // beritahu pengguna cara guna skrin ini
     } catch (e) {
       debugPrint('❌ Ralat init imbas: $e');
-      _safeSetState(() => _error = 'Gagal memulakan kamera.\n$e');
+      _safeSetState(() => _error = '${t('Gagal memulakan kamera.', 'Failed to start the camera.')}\n$e');
     } finally {
       _initializing = false;
     }
   }
 
   void _announce() {
-    final bm = _tts.uiLang == TextLang.bm;
-    _tts.speak(
-      bm
-          ? 'Imbas teks. Halakan kamera ke kertas, kemudian ketik di mana-mana pada skrin.'
-          : 'Scan text. Point the camera at the page, then tap anywhere on the screen.',
-      lang: _tts.uiLang,
+    _tts.announce(
+      'Imbas teks. Pegang telefon kira-kira sejengkal di atas kertas, kemudian ketik di mana-mana pada skrin.',
+      'Scan text. Hold the phone about one hand span above the page, then tap anywhere on the screen.',
     );
   }
 
@@ -103,7 +101,7 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
       } catch (_) {}
       _safeSetState(() {
         _ready = false;
-        _error = 'Kamera tidak dapat dibuka. Mungkin sedang digunakan oleh aplikasi lain.\n$e';
+        _error = '${t('Kamera tidak dapat dibuka. Mungkin sedang digunakan oleh aplikasi lain.', 'The camera could not open. Another app may be using it.')}\n$e';
       });
     }
   }
@@ -162,7 +160,8 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
 
     try {
       final shot = await c.takePicture();
-      final result = await _ocr.readImage(shot.path); // gambar dipadam dalam ni
+      // hanya teks dalam kotak kuning dibaca; gambar dipadam dalam fungsi ini
+      final result = await _ocr.readImage(shot.path, previewAspect: 1 / c.value.aspectRatio);
       if (_disposed || !mounted) return;
 
       if (result.isEmpty) {
@@ -170,8 +169,8 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
         await _tts.stop();
         _tts.speak(
           bm
-              ? 'Tiada teks dijumpai. Cuba dekatkan kamera, atau hidupkan lampu.'
-              : 'No text found. Try moving closer, or turn on the light.',
+              ? 'Tiada teks dalam kotak. Cuba angkat telefon sedikit, atau hidupkan lampu.'
+              : 'No text in the frame. Try lifting the phone a little, or turn on the light.',
           lang: _tts.uiLang,
         );
         if (mounted) showInfo(context, bm ? 'Tiada teks dijumpai. Cuba lagi.' : 'No text found. Try again.');
@@ -208,16 +207,16 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
     if (_permissionDenied) {
       body = _message(
         icon: Icons.videocam_off_outlined,
-        text: 'Kebenaran kamera diperlukan untuk mengimbas teks.',
-        action: 'Buka tetapan',
+        text: context.tr('Kebenaran kamera diperlukan untuk mengimbas teks.', 'Camera permission is needed to scan text.'),
+        action: context.tr('Buka tetapan', 'Open settings'),
         onAction: () => openAppSettings(),
       );
     } else if (_error != null) {
-      body = _message(icon: Icons.error_outline, text: _error!, action: 'Cuba lagi', onAction: _init);
+      body = _message(icon: Icons.error_outline, text: _error!, action: context.tr('Cuba lagi', 'Try again'), onAction: _init);
     } else if (_ready && _controller != null) {
       body = _cameraView(_controller!);
     } else {
-      body = _message(text: 'Memuatkan kamera...');
+      body = _message(text: context.tr('Memuatkan kamera...', 'Loading camera...'));
     }
     return Scaffold(body: body);
   }
@@ -230,7 +229,7 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const TopBar(title: Headline('Imbas Teks', size: 24)),
+            TopBar(title: Headline(context.tr('Imbas Teks', 'Scan Text'), size: 24)),
             const Spacer(),
             if (icon == null)
               const Center(child: CircularProgressIndicator())
@@ -268,7 +267,8 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
           Positioned.fill(
             child: Semantics(
               button: true,
-              label: 'Kamera. Ketik dua kali untuk ambil gambar dan baca teks',
+              label: context.tr('Kamera. Ketik dua kali untuk ambil gambar dan baca teks',
+                  'Camera. Double tap to take a photo and read the text'),
               excludeSemantics: true,
               onTap: _capture,
               child: GestureDetector(
@@ -285,8 +285,8 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
                         IgnorePointer(
                           child: Center(
                             child: FractionallySizedBox(
-                              widthFactor: 0.86,
-                              heightFactor: 0.62,
+                              widthFactor: kFrameWidth,
+                              heightFactor: kFrameHeight,
                               child: Container(
                                 decoration: BoxDecoration(
                                   border: Border.all(color: p.highlight, width: 4),
@@ -313,7 +313,9 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
                   const Spacer(),
                   SquareIconButton(
                     icon: _torchOn ? Icons.flashlight_off : Icons.flashlight_on,
-                    tooltip: _torchOn ? 'Matikan lampu' : 'Hidupkan lampu',
+                    tooltip: _torchOn
+                        ? context.tr('Matikan lampu', 'Turn off light')
+                        : context.tr('Hidupkan lampu', 'Turn on light'),
                     onPressed: _toggleTorch,
                   ),
                 ],
@@ -340,7 +342,10 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
                     Semantics(
                       liveRegion: true,
                       child: Text(
-                        _busy ? 'Sedang membaca teks...' : 'Halakan ke kertas, kemudian ketik skrin',
+                        _busy
+                            ? context.tr('Sedang membaca teks...', 'Reading text...')
+                            : context.tr('Letak teks dalam kotak kuning, kemudian ketik skrin',
+                                'Put the text inside the yellow frame, then tap the screen'),
                         style: TextStyle(
                           fontFamily: AppFonts.heading,
                           fontSize: 21,
@@ -352,7 +357,7 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
                     ),
                     const SizedBox(height: 14),
                     BadgeButton(
-                      label: _busy ? 'Sedang membaca' : 'Ambil gambar',
+                      label: _busy ? context.tr('Sedang membaca', 'Reading') : context.tr('Ambil gambar', 'Take photo'),
                       badgeIcon: Icons.camera_alt,
                       loading: _busy,
                       onPressed: _capture,

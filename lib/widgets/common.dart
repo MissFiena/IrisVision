@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/lang.dart';
 import '../theme/app_theme.dart';
 
 /// Logo IrisVision. Hiasan sahaja: disembunyikan daripada TalkBack.
@@ -63,7 +64,7 @@ class BackSquare extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SquareIconButton(
         icon: Icons.chevron_left,
-        tooltip: 'Kembali',
+        tooltip: context.tr('Kembali', 'Back'),
         onPressed: () => Navigator.of(context).maybePop(),
       );
 }
@@ -78,7 +79,7 @@ class StepDots extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.pal;
     return Semantics(
-      label: 'Langkah $step daripada $total',
+      label: context.tr('Langkah $step daripada $total', 'Step $step of $total'),
       child: ExcludeSemantics(
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -145,7 +146,7 @@ class BadgeButton extends StatelessWidget {
     return Semantics(
       button: true,
       enabled: enabled,
-      label: loading ? '$label. Sedang diproses' : label,
+      label: loading ? '$label. ${context.tr('Sedang diproses', 'Processing')}' : label,
       excludeSemantics: true,
       onTap: enabled ? onPressed : null,
       child: Material(
@@ -284,7 +285,7 @@ class StatusBanner extends StatelessWidget {
     return Semantics(
       liveRegion: true,
       container: true,
-      label: '${isError ? 'Ralat' : 'Berjaya'}: $message',
+      label: '${isError ? context.tr('Ralat', 'Error') : context.tr('Berjaya', 'Success')}: $message',
       child: ExcludeSemantics(
         child: Container(
           width: double.infinity,
@@ -362,7 +363,9 @@ class _PasswordFieldState extends State<PasswordField> {
         prefixIcon: const Icon(Icons.lock_outline),
         suffixIcon: IconButton(
           iconSize: 28,
-          tooltip: _obscure ? 'Tunjuk kata laluan' : 'Sembunyi kata laluan',
+          tooltip: _obscure
+              ? context.tr('Tunjuk kata laluan', 'Show password')
+              : context.tr('Sembunyi kata laluan', 'Hide password'),
           icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
           onPressed: () => setState(() => _obscure = !_obscure),
         ),

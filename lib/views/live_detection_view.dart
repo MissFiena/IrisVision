@@ -1,7 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../services/app_settings.dart';
+import '../services/lang.dart';
 import '../services/tflite_service.dart';
+import '../services/tts_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 
@@ -32,6 +37,22 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
   int _lastFrameMs = 0;
   static const int _minFrameGapMs = 100; // had ~10 FPS supaya telefon tak panas
   int _sensorRotation = 90;
+
+  // ============================ SUARA ============================
+  final TtsService _tts = TtsService.instance;
+  final AppSettings _settings = AppSettings.instance;
+  bool _announced = false;
+  String _sceneKey = ''; // objek yang terakhir disebut
+  String _pendingKey = ''; // objek dalam frame terkini (belum tentu stabil)
+  int _pendingCount = 0;
+  int _lastSpokenMs = 0;
+  int _lastTooFarMs = 0;
+  int _emptySinceMs = 0;
+  static const int _stableFrames = 2; // mesti sama 2 frame berturut baru disebut
+  static const int _minGapMs = 1500; // jarak minimum antara dua ayat
+  static const int _repeatSameMs = 10000; // objek sama disebut semula selepas 10 s
+  static const int _forgetMs = 1500; // kosong selama ini -> objek dianggap hilang
+  static const int _maxSpoken = 3; // sebut paling banyak 3 objek sekali gus
 
   @override
   void initState() {
@@ -65,12 +86,12 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
         await _tfLiteService.loadModel();
       }
       if (!_tfLiteService.isModelLoaded) {
-        throw 'Model AI gagal dimuatkan.';
+        throw t('Model AI gagal dimuatkan.', 'The AI model failed to load.');
       }
 
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-        throw 'Tiada kamera dijumpai pada peranti ini.';
+        throw t('Tiada kamera dijumpai pada peranti ini.', 'No camera found on this device.');
       }
 
       // pilih kamera BELAKANG
@@ -83,7 +104,7 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
       await _startCamera();
     } catch (e) {
       debugPrint('❌ Ralat init: $e');
-      _safeSetState(() => _errorMessage = 'Gagal memulakan kamera.\n$e');
+      _safeSetState(() => _errorMessage = '${t('Gagal memulakan kamera.', 'Failed to start the camera.')}\n$e');
     } finally {
       _initializing = false;
     }
@@ -114,6 +135,14 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
         _isCameraInitialized = true;
         _errorMessage = null;
       });
+      if (!_announced && mounted) {
+        _announced = true;
+        _tts.announceScreen(
+          context,
+          'Kesan objek. Halakan kamera ke hadapan.',
+          'Object detection. Point the camera ahead.',
+        );
+      }
     } catch (e) {
       debugPrint('❌ Ralat kamera: $e');
       if (_cameraController == controller) _cameraController = null;
@@ -122,7 +151,8 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
       } catch (_) {}
       _safeSetState(() {
         _isCameraInitialized = false;
-        _errorMessage = 'Kamera tidak dapat dibuka. Mungkin sedang digunakan oleh aplikasi lain.\n$e';
+        _errorMessage =
+            '${t('Kamera tidak dapat dibuka. Mungkin sedang digunakan oleh aplikasi lain.', 'The camera could not open. Another app may be using it.')}\n$e';
       });
     } finally {
       _starting = false;
@@ -153,6 +183,7 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
 
     if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
       // app ke background -> lepaskan kamera supaya app lain boleh guna
+      _tts.stop();
       _stopCamera();
     } else if (state == AppLifecycleState.resumed) {
       if (_permissionDenied || _camera == null) {
@@ -175,15 +206,87 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
     _isProcessingFrame = true;
     try {
       final result = await _tfLiteService.processCameraFrame(image, _sensorRotation);
-      if (!_disposed) _result.value = result;
+      if (!_disposed) {
+        _result.value = result;
+        _maybeSpeak(result);
+      }
     } finally {
       _isProcessingFrame = false;
+    }
+  }
+
+  // ======================== SUARA: LOGIK ========================
+  /// Pilih objek untuk disebut: unik, keyakinan tertinggi, maks 3,
+  /// disusun kiri -> tengah -> kanan supaya ayat mudah dibayangkan.
+  List<Detection> _top(DetectionResult r) {
+    final sorted = [...r.detections]..sort((a, b) => b.confidence.compareTo(a.confidence));
+    final seen = <String>{};
+    final out = <Detection>[];
+    for (final d in sorted) {
+      if (seen.add('${d.label}@${d.position}')) out.add(d);
+      if (out.length == _maxSpoken) break;
+    }
+    const order = {'kiri': 0, 'tengah': 1, 'kanan': 2};
+    out.sort((a, b) => (order[a.position] ?? 1).compareTo(order[b.position] ?? 1));
+    return out;
+  }
+
+  void _maybeSpeak(DetectionResult r) {
+    if (!_settings.speakDetections.value || !_announced) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final top = _top(r);
+
+    if (top.isEmpty) {
+      _pendingKey = '';
+      _pendingCount = 0;
+      if (_emptySinceMs == 0) _emptySinceMs = now;
+      // kosong cukup lama -> bila objek sama muncul semula, sebut lagi
+      if (now - _emptySinceMs > _forgetMs) _sceneKey = '';
+      if (r.tooFar && !_tts.isSpeaking && now - _lastTooFarMs > 8000) {
+        _lastTooFarMs = now;
+        _lastSpokenMs = now;
+        _tts.announce('Dekatkan kamera.', 'Move the camera closer.');
+      }
+      return;
+    }
+    _emptySinceMs = 0;
+
+    final key = top.map((d) => '${d.label}@${d.position}').join('|');
+    if (key == _pendingKey) {
+      _pendingCount++;
+    } else {
+      _pendingKey = key;
+      _pendingCount = 1;
+    }
+    if (_pendingCount < _stableFrames) return; // tunggu stabil, elak berkelip
+    if (_tts.isSpeaking) return; // jangan potong ayat yang sedang dibaca
+    if (now - _lastSpokenMs < _minGapMs) return;
+
+    final isNew = key != _sceneKey;
+    if (!isNew && now - _lastSpokenMs < _repeatSameMs) return;
+
+    _sceneKey = key;
+    _lastSpokenMs = now;
+    if (isNew && _settings.vibrate.value) HapticFeedback.mediumImpact();
+    unawaited(_tts.speak(_spoken(top), lang: _tts.uiLang));
+  }
+
+  void _toggleVoice() {
+    final on = !_settings.speakDetections.value;
+    _settings.speakDetections.value = on;
+    HapticFeedback.selectionClick();
+    if (on) {
+      _sceneKey = ''; // sebut semula objek semasa
+      _tts.announce('Suara dihidupkan.', 'Voice on.', remember: false);
+    } else {
+      _tts.announce('Suara dimatikan.', 'Voice off.', remember: false);
     }
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _tts.stop();
     WidgetsBinding.instance.removeObserver(this);
     _stopCamera(); // stop stream dulu, kemudian dispose kamera
     _tfLiteService.dispose(); // tunggu frame semasa siap sebelum tutup model
@@ -191,7 +294,6 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
     super.dispose();
   }
 
-  // ============================== UI ==============================
   // ============================== UI ==============================
   /// Nama paparan BM ringkas untuk label model (yang tiada -> huruf kecil biasa).
   static const Map<String, String> _bm = {
@@ -204,45 +306,71 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
     'TOILET': 'Tandas', 'SINK': 'Sinki', 'DOG': 'Anjing', 'CAT': 'Kucing',
   };
 
+  bool get _isBm => _settings.language.value == VoiceLanguage.bm;
+
+  static String _cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+  /// Nama untuk kotak dan panel (ikut bahasa pilihan).
   String _name(String label) {
-    final bm = _bm[label];
-    if (bm != null) return bm;
-    final l = label.toLowerCase();
-    return l.isEmpty ? l : l[0].toUpperCase() + l.substring(1);
+    if (_isBm) {
+      final bm = _bm[label];
+      if (bm != null) return bm;
+    }
+    if (label == 'TV') return 'TV';
+    return _cap(label.toLowerCase());
   }
 
-  /// Ayat yang dipaparkan (dan nanti dibaca oleh TTS).
-  String _sentence(DetectionResult r) {
-    if (r.detections.isNotEmpty) {
-      final parts = r.detections.map((d) => '${_name(d.label)} di ${d.position}').toList();
-      final s = parts.join(', ');
-      return s[0].toUpperCase() + s.substring(1);
+  String _posPhrase(String pos) {
+    if (_isBm) {
+      return switch (pos) { 'kiri' => 'di sebelah kiri', 'kanan' => 'di sebelah kanan', _ => 'di hadapan' };
     }
-    if (r.tooFar) return 'Ada objek tetapi tidak jelas. Sila dekatkan kamera.';
-    return 'Halakan kamera ke hadapan...';
+    return switch (pos) { 'kiri' => 'on your left', 'kanan' => 'on your right', _ => 'ahead' };
+  }
+
+  /// Ayat yang dipaparkan DAN dibaca. Contoh:
+  /// "Kerusi di sebelah kiri. Meja dan laptop di hadapan."
+  String _spoken(List<Detection> top) {
+    final and = _isBm ? ' dan ' : ' and ';
+    final groups = <String, List<String>>{};
+    for (final d in top) {
+      final n = _name(d.label);
+      groups.putIfAbsent(d.position, () => []).add(n == 'TV' ? n : n.toLowerCase());
+    }
+    final sentences = groups.entries.map((e) => _cap('${e.value.join(and)} ${_posPhrase(e.key)}.'));
+    return sentences.join(' ');
+  }
+
+  String _sentence(DetectionResult r) {
+    final top = _top(r);
+    if (top.isNotEmpty) return _spoken(top);
+    if (r.tooFar) {
+      return _isBm ? 'Ada objek tetapi tidak jelas. Sila dekatkan kamera.' : 'Something is there but unclear. Move the camera closer.';
+    }
+    return _isBm ? 'Halakan kamera ke hadapan...' : 'Point the camera ahead...';
   }
 
   @override
   Widget build(BuildContext context) {
+    context.isBm; // bina semula bila bahasa ditukar
     final Widget body;
     if (_permissionDenied) {
       body = _buildMessage(
         icon: Icons.videocam_off_outlined,
-        text: 'Kebenaran kamera diperlukan untuk mengesan objek.',
-        action: 'Buka tetapan',
+        text: context.tr('Kebenaran kamera diperlukan untuk mengesan objek.', 'Camera permission is needed to detect objects.'),
+        action: context.tr('Buka tetapan', 'Open settings'),
         onAction: () => openAppSettings(),
       );
     } else if (_errorMessage != null) {
       body = _buildMessage(
         icon: Icons.error_outline,
         text: _errorMessage!,
-        action: 'Cuba lagi',
+        action: context.tr('Cuba lagi', 'Try again'),
         onAction: (_starting || _initializing) ? null : _initializeSystem,
       );
     } else if (_isCameraInitialized && _cameraController != null) {
       body = _buildCameraView(_cameraController!);
     } else {
-      body = _buildMessage(icon: null, text: 'Memuatkan kamera dan model AI...');
+      body = _buildMessage(icon: null, text: context.tr('Memuatkan kamera dan model AI...', 'Loading camera and AI model...'));
     }
     return Scaffold(body: body);
   }
@@ -255,7 +383,7 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const TopBar(title: Headline('Kesan Objek', size: 24)),
+            TopBar(title: Headline(context.tr('Kesan Objek', 'Detect Objects'), size: 24)),
             const Spacer(),
             if (icon == null)
               const Center(child: CircularProgressIndicator())
@@ -319,12 +447,38 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
               children: [
                 const BackSquare(),
                 const Spacer(),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _settings.speakDetections,
+                  builder: (context, on, _) => Semantics(
+                    button: true,
+                    toggled: on,
+                    label: context.tr('Suara objek', 'Object voice'),
+                    excludeSemantics: true,
+                    child: Material(
+                      color: on ? p.highlight : p.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: _toggleVoice,
+                        child: SizedBox(
+                          width: 56,
+                          height: 48,
+                          child: Icon(
+                            on ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+                            color: on ? p.onHighlight : p.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 ValueListenableBuilder<DetectionResult>(
                   valueListenable: _result,
                   builder: (context, r, _) {
                     final ok = r.latencyMs <= 1500;
                     return Semantics(
-                      label: 'Kelajuan ${r.latencyMs} milisaat',
+                      label: context.tr('Kelajuan ${r.latencyMs} milisaat', 'Speed ${r.latencyMs} milliseconds'),
                       excludeSemantics: true,
                       child: Container(
                         height: 40,
@@ -360,6 +514,9 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
             valueListenable: _result,
             builder: (context, r, _) => _ResultPanel(
               sentence: _sentence(r),
+              bm: _isBm,
+              // suara app aktif -> TalkBack tak perlu baca juga (elak bertindih)
+              live: !_settings.speakDetections.value,
               left: _firstAt(r, 'kiri'),
               center: _firstAt(r, 'tengah'),
               right: _firstAt(r, 'kanan'),
@@ -381,8 +538,17 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
 
 class _ResultPanel extends StatelessWidget {
   final String sentence;
+  final bool bm;
+  final bool live;
   final String? left, center, right;
-  const _ResultPanel({required this.sentence, this.left, this.center, this.right});
+  const _ResultPanel({
+    required this.sentence,
+    required this.bm,
+    required this.live,
+    this.left,
+    this.center,
+    this.right,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -430,11 +596,11 @@ class _ResultPanel extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Text('Di hadapan anda', style: TextStyle(fontSize: 15, color: p.textSecondary)),
+            Text(bm ? 'Di hadapan anda' : 'In front of you', style: TextStyle(fontSize: 15, color: p.textSecondary)),
             const SizedBox(height: 2),
             // liveRegion: TalkBack baca bila ayat berubah
             Semantics(
-              liveRegion: true,
+              liveRegion: live,
               child: Text(
                 sentence,
                 maxLines: 3,
@@ -446,11 +612,11 @@ class _ResultPanel extends StatelessWidget {
             ExcludeSemantics(
               child: Row(
                 children: [
-                  cell('KIRI', left),
+                  cell(bm ? 'KIRI' : 'LEFT', left),
                   const SizedBox(width: 8),
-                  cell('TENGAH', center),
+                  cell(bm ? 'TENGAH' : 'CENTRE', center),
                   const SizedBox(width: 8),
-                  cell('KANAN', right),
+                  cell(bm ? 'KANAN' : 'RIGHT', right),
                 ],
               ),
             ),

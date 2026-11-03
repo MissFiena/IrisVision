@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/app_settings.dart';
 import '../../services/auth_service.dart';
+import '../../services/lang.dart';
+import '../../services/tts_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import '../live_detection_view.dart';
@@ -12,22 +14,56 @@ import '../scan/scan_text_view.dart';
 /// Skrin belah dua: ATAS = Kesan Objek, BAWAH = Imbas Teks.
 /// Pengguna buta cuma perlu ingat "atas objek, bawah teks"; setiap separuh
 /// skrin ialah satu butang yang sangat besar.
-class HomeView extends StatelessWidget {
+class HomeView extends StatefulWidget {
   const HomeView({super.key});
 
-  String _greeting() {
-    final h = DateTime.now().hour;
-    if (h >= 5 && h < 12) return 'Selamat pagi';
-    if (h >= 12 && h < 14) return 'Selamat tengah hari';
-    if (h >= 14 && h < 19) return 'Selamat petang';
-    return 'Selamat malam';
+  @override
+  State<HomeView> createState() => _HomeViewState();
+}
+
+class _HomeViewState extends State<HomeView> {
+  @override
+  void initState() {
+    super.initState();
+    // sebut susun atur skrin sekali bila mula masuk
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      TtsService.instance.announceScreen(
+        context,
+        'Skrin utama. Atas, kesan objek. Bawah, imbas teks.',
+        'Home screen. Top, object detection. Bottom, scan text.',
+      );
+    });
   }
 
-  void _soon(BuildContext context, String what) =>
-      showInfo(context, '$what akan datang dalam kemas kini seterusnya.');
+  @override
+  Widget build(BuildContext context) => const _HomeBody();
+}
 
-  void _open(BuildContext context, Widget page) =>
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+class _HomeBody extends StatelessWidget {
+  const _HomeBody();
+
+  String _greeting(BuildContext context) {
+    final h = DateTime.now().hour;
+    if (h >= 5 && h < 12) return context.tr('Selamat pagi', 'Good morning');
+    if (h >= 12 && h < 14) return context.tr('Selamat tengah hari', 'Good afternoon');
+    if (h >= 14 && h < 19) return context.tr('Selamat petang', 'Good evening');
+    return context.tr('Selamat malam', 'Good night');
+  }
+
+  void _soon(BuildContext context, String what) {
+    final msg = t('$what akan datang dalam kemas kini seterusnya.', '$what is coming in the next update.');
+    showInfo(context, msg);
+    TtsService.instance.say(msg, lang: TtsService.instance.uiLang);
+  }
+
+  Future<void> _open(BuildContext context, Widget page) async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+    // balik ke skrin utama -> beritahu pengguna di mana dia sekarang
+    if (context.mounted) {
+      TtsService.instance.announceScreen(context, 'Skrin utama.', 'Home screen.');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,14 +87,14 @@ class HomeView extends StatelessWidget {
                       Expanded(
                         child: Semantics(
                           header: true,
-                          label: '${_greeting()}, ${name.isEmpty ? 'pengguna' : name}',
+                          label: '${_greeting(context)}, ${name.isEmpty ? context.tr('pengguna', 'user') : name}',
                           excludeSemantics: true,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(_greeting(), style: TextStyle(fontSize: 15, color: p.textSecondary)),
+                              Text(_greeting(context), style: TextStyle(fontSize: 15, color: p.textSecondary)),
                               Text(
-                                name.isEmpty ? 'Hai!' : name,
+                                name.isEmpty ? context.tr('Hai!', 'Hi!') : name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
@@ -86,7 +122,8 @@ class HomeView extends StatelessWidget {
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            'Semua diproses dalam telefon. Tiada internet diperlukan.',
+                            context.tr('Semua diproses dalam telefon. Tiada internet diperlukan.',
+                                'Everything runs on your phone. No internet needed.'),
                             style: TextStyle(fontSize: 15, color: p.textSecondary),
                           ),
                         ),
@@ -97,8 +134,8 @@ class HomeView extends StatelessWidget {
                   // ---------------- dua kad besar ----------------
                   Expanded(
                     child: _ModeCard(
-                      title: 'Kesan Objek',
-                      subtitle: 'Kenal apa di depan anda',
+                      title: context.tr('Kesan Objek', 'Detect Objects'),
+                      subtitle: context.tr('Kenal apa di depan anda', 'Know what is in front of you'),
                       icon: Icons.center_focus_strong,
                       background: p.primary,
                       foreground: p.onPrimary,
@@ -110,8 +147,8 @@ class HomeView extends StatelessWidget {
                   const SizedBox(height: 14),
                   Expanded(
                     child: _ModeCard(
-                      title: 'Imbas Teks',
-                      subtitle: 'Dengar buku dan nota',
+                      title: context.tr('Imbas Teks', 'Scan Text'),
+                      subtitle: context.tr('Dengar buku dan nota', 'Listen to books and notes'),
                       icon: Icons.description_outlined,
                       background: p.highlight,
                       foreground: p.onHighlight,
@@ -130,9 +167,9 @@ class HomeView extends StatelessWidget {
               right: 16,
               bottom: 16,
               child: _Dock(
-                onHistory: () => _soon(context, 'Sejarah'),
-                onVoice: () => _soon(context, 'Arahan suara'),
-                onHelp: () => _soon(context, 'Bantuan'),
+                onHistory: () => _soon(context, t('Sejarah', 'History')),
+                onVoice: () => _soon(context, t('Arahan suara', 'Voice command')),
+                onHelp: () => _soon(context, t('Bantuan', 'Help')),
                 onProfile: () => _open(context, const ProfileView()),
               ),
             ),
@@ -152,7 +189,7 @@ class _ReadyPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.pal;
     return Semantics(
-      label: 'Status: sedia, berfungsi tanpa internet',
+      label: context.tr('Status: sedia, berfungsi tanpa internet', 'Status: ready, works offline'),
       excludeSemantics: true,
       child: Container(
         height: 44,
@@ -171,7 +208,7 @@ class _ReadyPill extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Text('Sedia', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: p.success)),
+            Text(context.tr('Sedia', 'Ready'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: p.success)),
           ],
         ),
       ),
@@ -179,9 +216,17 @@ class _ReadyPill extends StatelessWidget {
   }
 }
 
-/// Tukar bahasa suara BM <-> EN dengan satu tekan.
+/// Tukar bahasa app + suara BM <-> EN.
+/// Bila ditukar, app sebut bahasa baru dalam bahasa itu sendiri.
 class _LanguageChip extends StatelessWidget {
   const _LanguageChip();
+
+  static void _toggle() {
+    final s = AppSettings.instance;
+    s.toggleLanguage();
+    final tts = TtsService.instance;
+    tts.say(s.isBm ? 'Bahasa Melayu dipilih.' : 'English selected.', lang: tts.uiLang, remember: false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -194,10 +239,10 @@ class _LanguageChip extends StatelessWidget {
         return Semantics(
           button: true,
           label: isBm
-              ? 'Bahasa suara: Bahasa Melayu. Tekan untuk tukar ke English'
-              : 'Voice language: English. Tap to switch to Bahasa Melayu',
+              ? 'Bahasa: Bahasa Melayu. Tukar ke English'
+              : 'Language: English. Switch to Bahasa Melayu',
           excludeSemantics: true,
-          onTap: settings.toggleLanguage,
+          onTap: _toggle,
           child: Material(
             color: p.surface,
             shape: RoundedRectangleBorder(
@@ -206,10 +251,7 @@ class _LanguageChip extends StatelessWidget {
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: () {
-                HapticFeedback.selectionClick();
-                settings.toggleLanguage();
-              },
+              onTap: _toggle,
               child: SizedBox(
                 width: 52,
                 height: 52,
@@ -219,7 +261,7 @@ class _LanguageChip extends StatelessWidget {
                     Text(isBm ? 'BM' : 'EN',
                         style: TextStyle(
                             fontFamily: AppFonts.heading, fontSize: 16, fontWeight: FontWeight.w800, color: p.accent, height: 1)),
-                    Text(isBm ? 'suara' : 'voice',
+                    Text(isBm ? 'bahasa' : 'language',
                         style: TextStyle(fontSize: 10, color: p.textSecondary, height: 1.3)),
                   ],
                 ),
@@ -346,11 +388,16 @@ class _Dock extends StatelessWidget {
             ),
             child: Row(
               children: [
-                _DockItem(icon: Icons.home_rounded, label: 'Utama', selected: true, onTap: () {}),
-                _DockItem(icon: Icons.history, label: 'Sejarah', onTap: onHistory),
+                _DockItem(
+                  icon: Icons.home_rounded,
+                  label: context.tr('Utama', 'Home'),
+                  selected: true,
+                  onTap: () => TtsService.instance.announce('Anda di skrin utama.', 'You are on the home screen.'),
+                ),
+                _DockItem(icon: Icons.history, label: context.tr('Sejarah', 'History'), onTap: onHistory),
                 const Expanded(child: SizedBox()),
-                _DockItem(icon: Icons.help_outline, label: 'Bantuan', onTap: onHelp),
-                _DockItem(icon: Icons.person_outline, label: 'Profil', onTap: onProfile),
+                _DockItem(icon: Icons.help_outline, label: context.tr('Bantuan', 'Help'), onTap: onHelp),
+                _DockItem(icon: Icons.person_outline, label: context.tr('Profil', 'Profile'), onTap: onProfile),
               ],
             ),
           ),
@@ -358,7 +405,7 @@ class _Dock extends StatelessWidget {
             top: 0,
             child: Semantics(
               button: true,
-              label: 'Arahan suara',
+              label: context.tr('Arahan suara', 'Voice command'),
               excludeSemantics: true,
               onTap: onVoice,
               child: Material(

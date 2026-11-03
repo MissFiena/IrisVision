@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/app_settings.dart';
 import '../../services/auth_service.dart';
+import '../../services/lang.dart';
+import '../../services/tts_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import '../auth/privacy_view.dart';
@@ -10,18 +12,35 @@ import '../auth/privacy_view.dart';
 class ProfileView extends StatelessWidget {
   const ProfileView({super.key});
 
+  static void _say(String bm, String en) {
+    final tts = TtsService.instance;
+    tts.say(t(bm, en), lang: tts.uiLang, remember: false);
+  }
+
   Future<void> _confirmSignOut(BuildContext context) async {
     HapticFeedback.mediumImpact();
+    _say('Log keluar? Anda perlu log masuk semula selepas ini.', 'Sign out? You will need to sign in again.');
     final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Log keluar?'),
-        content: const Text('Anda perlu log masuk semula untuk guna IrisVision selepas ini.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Batal')),
-          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Log keluar')),
-        ],
-      ),
+      builder: (context) {
+        final cancel = context.tr('Batal', 'Cancel');
+        final out = context.tr('Log keluar', 'Sign out');
+        return AlertDialog(
+          title: Text(context.tr('Log keluar?', 'Sign out?')),
+          content: Text(context.tr('Anda perlu log masuk semula untuk guna IrisVision selepas ini.',
+              'You will need to sign in again to use IrisVision.')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(cancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(out),
+            ),
+          ],
+        );
+      },
     );
     if (ok != true || !context.mounted) return;
     await AuthService.instance.signOut();
@@ -34,12 +53,12 @@ class ProfileView extends StatelessWidget {
     final p = context.pal;
     final s = AppSettings.instance;
     final user = AuthService.instance.currentUser;
-    final name = user?.displayName?.trim().isNotEmpty == true ? user!.displayName!.trim() : 'Pengguna';
+    final name = user?.displayName?.trim().isNotEmpty == true ? user!.displayName!.trim() : context.tr('Pengguna', 'User');
     final viaGoogle = user?.providerData.any((i) => i.providerId == 'google.com') ?? false;
 
-    Widget label(String t) => Padding(
+    Widget label(String text) => Padding(
           padding: const EdgeInsets.only(bottom: 8, top: 18),
-          child: Text(t, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.textSecondary)),
+          child: Text(text, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.textSecondary)),
         );
 
     return Scaffold(
@@ -47,11 +66,14 @@ class ProfileView extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
           children: [
-            const TopBar(title: Headline('Profil', size: 26)),
+            TopBar(title: Headline(context.tr('Profil', 'Profile'), size: 26)),
             const SizedBox(height: 16),
             // ---------------- kad profil ----------------
             Semantics(
-              label: 'Akaun: $name, ${user?.email ?? ''}, ${viaGoogle ? 'akaun Google' : 'e-mel dan kata laluan'}',
+              label: context.tr(
+                'Akaun: $name, ${user?.email ?? ''}, ${viaGoogle ? 'akaun Google' : 'e-mel dan kata laluan'}',
+                'Account: $name, ${user?.email ?? ''}, ${viaGoogle ? 'Google account' : 'email and password'}',
+              ),
               excludeSemantics: true,
               child: Container(
                 padding: const EdgeInsets.all(16),
@@ -76,7 +98,7 @@ class ProfileView extends StatelessWidget {
                           Text(name, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: p.textPrimary)),
                           const SizedBox(height: 2),
                           Text(
-                            '${user?.email ?? '-'} · ${viaGoogle ? 'Akaun Google' : 'E-mel'}',
+                            '${user?.email ?? '-'} · ${viaGoogle ? context.tr('Akaun Google', 'Google account') : context.tr('E-mel', 'Email')}',
                             style: TextStyle(fontSize: 15, color: p.textSecondary),
                           ),
                         ],
@@ -87,18 +109,21 @@ class ProfileView extends StatelessWidget {
               ),
             ),
             // ---------------- bahasa ----------------
-            label('Bahasa suara'),
+            label(context.tr('Bahasa app dan suara', 'App and voice language')),
             ValueListenableBuilder<VoiceLanguage>(
               valueListenable: s.language,
               builder: (context, v, _) => Segmented<VoiceLanguage>(
-                semanticLabel: 'Bahasa suara',
+                semanticLabel: context.tr('Bahasa app dan suara', 'App and voice language'),
                 options: const [(VoiceLanguage.bm, 'Bahasa Melayu'), (VoiceLanguage.en, 'English')],
                 value: v,
-                onChanged: (x) => s.language.value = x,
+                onChanged: (x) {
+                  s.language.value = x;
+                  _say('Bahasa Melayu dipilih.', 'English selected.');
+                },
               ),
             ),
             // ---------------- kelajuan ----------------
-            label('Kelajuan suara'),
+            label(context.tr('Kelajuan suara', 'Voice speed')),
             ValueListenableBuilder<double>(
               valueListenable: s.speechRate,
               builder: (context, r, _) => Container(
@@ -108,8 +133,8 @@ class ProfileView extends StatelessWidget {
                   children: [
                     _StepButton(
                       symbol: '−',
-                      tooltip: 'Perlahankan suara',
-                      onTap: r > 0.5 ? () => s.speechRate.value = (r - 0.25).clamp(0.5, 1.5) : null,
+                      tooltip: context.tr('Perlahankan suara', 'Slower voice'),
+                      onTap: r > 0.5 ? () => _setRate(s, r - 0.25) : null,
                     ),
                     Expanded(
                       child: Semantics(
@@ -123,47 +148,55 @@ class ProfileView extends StatelessWidget {
                     ),
                     _StepButton(
                       symbol: '+',
-                      tooltip: 'Lajukan suara',
-                      onTap: r < 1.5 ? () => s.speechRate.value = (r + 0.25).clamp(0.5, 1.5) : null,
+                      tooltip: context.tr('Lajukan suara', 'Faster voice'),
+                      onTap: r < 1.5 ? () => _setRate(s, r + 0.25) : null,
                     ),
                   ],
                 ),
               ),
             ),
             // ---------------- tema ----------------
-            label('Tema'),
+            label(context.tr('Tema paparan (untuk penglihatan terhad)', 'Display theme (for low vision)')),
             ValueListenableBuilder<ThemeMode>(
               valueListenable: s.themeMode,
               builder: (context, m, _) => Segmented<ThemeMode>(
-                semanticLabel: 'Tema paparan',
+                semanticLabel: context.tr('Tema paparan', 'Display theme'),
                 highlightSelected: true,
-                options: const [
-                  (ThemeMode.system, 'Ikut telefon'),
-                  (ThemeMode.dark, 'Gelap'),
-                  (ThemeMode.light, 'Cerah'),
+                options: [
+                  (ThemeMode.system, context.tr('Ikut telefon', 'Same as phone')),
+                  (ThemeMode.dark, context.tr('Gelap', 'Dark')),
+                  (ThemeMode.light, context.tr('Cerah', 'Light')),
                 ],
                 value: m,
-                onChanged: (x) => s.themeMode.value = x,
+                onChanged: (x) {
+                  s.themeMode.value = x;
+                  switch (x) {
+                    case ThemeMode.dark:
+                      _say('Tema gelap dipilih.', 'Dark theme selected.');
+                    case ThemeMode.light:
+                      _say('Tema cerah dipilih.', 'Light theme selected.');
+                    case ThemeMode.system:
+                      _say('Tema ikut telefon.', 'Theme follows your phone.');
+                  }
+                },
               ),
             ),
             const SizedBox(height: 16),
-            // ---------------- getaran ----------------
-            ValueListenableBuilder<bool>(
-              valueListenable: s.vibrate,
-              builder: (context, on, _) => Container(
-                decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(18)),
-                child: SwitchListTile(
-                  value: on,
-                  onChanged: (x) {
-                    HapticFeedback.selectionClick();
-                    s.vibrate.value = x;
-                  },
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  title: Text('Getaran bila objek dikesan',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: p.textPrimary)),
-                ),
-              ),
+            // ---------------- suis ----------------
+            _Toggle(
+              value: s.autoAnnounce,
+              title: context.tr('Sebut nama skrin bila dibuka', 'Say the screen name when opened'),
+              subtitle: context.tr('Senyap bila TalkBack aktif', 'Silent when TalkBack is on'),
+            ),
+            const SizedBox(height: 12),
+            _Toggle(
+              value: s.speakDetections,
+              title: context.tr('Sebut objek yang dikesan', 'Say detected objects'),
+            ),
+            const SizedBox(height: 12),
+            _Toggle(
+              value: s.vibrate,
+              title: context.tr('Getaran bila objek dikesan', 'Vibrate when an object is found'),
             ),
             const SizedBox(height: 12),
             // ---------------- privasi ----------------
@@ -173,7 +206,7 @@ class ProfileView extends StatelessWidget {
               child: ListTile(
                 minTileHeight: 64,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                title: Text('Privasi dan bantuan',
+                title: Text(context.tr('Privasi dan bantuan', 'Privacy and help'),
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: p.textPrimary)),
                 trailing: Icon(Icons.chevron_right, size: 30, color: p.accent),
                 onTap: () => Navigator.of(context).push(
@@ -192,12 +225,53 @@ class ProfileView extends StatelessWidget {
                 textStyle: const TextStyle(fontFamily: AppFonts.heading, fontSize: 19, fontWeight: FontWeight.w700),
               ),
               icon: const Icon(Icons.logout, size: 26),
-              label: const Text('Log keluar'),
+              label: Text(context.tr('Log keluar', 'Sign out')),
               onPressed: () => _confirmSignOut(context),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+void _setRate(AppSettings s, double r) {
+  s.speechRate.value = r.clamp(0.5, 1.5);
+  // sebut kelajuan baru PADA kelajuan baru, supaya pengguna terus dengar bezanya
+  final tts = TtsService.instance;
+  tts.say(s.speechRateLabel(s.speechRate.value), lang: tts.uiLang, remember: false);
+}
+
+/// Suis hidup/mati. Bila ditukar, app sebut nama + keadaan baru.
+class _Toggle extends StatelessWidget {
+  final ValueNotifier<bool> value;
+  final String title;
+  final String? subtitle;
+  const _Toggle({required this.value, required this.title, this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.pal;
+    return ValueListenableBuilder<bool>(
+      valueListenable: value,
+      builder: (context, on, _) {
+        return Container(
+          decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(18)),
+          child: SwitchListTile(
+            value: on,
+            onChanged: (x) {
+              HapticFeedback.selectionClick();
+              value.value = x;
+              final tts = TtsService.instance;
+              tts.say('$title, ${x ? t('hidup', 'on') : t('mati', 'off')}', lang: tts.uiLang, remember: false);
+            },
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            title: Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: p.textPrimary)),
+            subtitle: subtitle == null ? null : Text(subtitle!, style: TextStyle(fontSize: 15, color: p.textSecondary)),
+          ),
+        );
+      },
     );
   }
 }

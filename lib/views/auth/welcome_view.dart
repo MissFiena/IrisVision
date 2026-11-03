@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/lang.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import 'auth_view.dart';
@@ -37,14 +38,14 @@ class WelcomeView extends StatelessWidget {
                     const _Hero(),
                     Semantics(
                       header: true,
-                      label: 'Mata kedua di dalam poket.',
+                      label: context.tr('Mata kedua di dalam poket.', 'A second pair of eyes in your pocket.'),
                       child: ExcludeSemantics(
                         child: Text.rich(
                           TextSpan(
-                            text: 'Mata kedua\ndi dalam ',
+                            text: context.tr('Mata kedua\ndi dalam ', 'A second pair of\neyes in your '),
                             children: [
                               TextSpan(
-                                text: 'poket.',
+                                text: context.tr('poket.', 'pocket.'),
                                 style: TextStyle(
                                   background: Paint()..color = p.highlight,
                                   color: p.onHighlight,
@@ -64,8 +65,10 @@ class WelcomeView extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      'Kenal objek di kampus dan dengar teks bercetak. '
-                      'Semuanya diproses dalam telefon anda.',
+                      context.tr(
+                        'Kenal objek di kampus dan dengar teks bercetak. Semuanya diproses dalam telefon anda.',
+                        'Recognise objects on campus and listen to printed text. Everything runs on your phone.',
+                      ),
                       style: TextStyle(fontSize: 18, height: 1.45, color: p.textSecondary),
                     ),
                     const Spacer(),
@@ -73,7 +76,7 @@ class WelcomeView extends StatelessWidget {
                     const Align(alignment: Alignment.centerLeft, child: StepDots(step: 1)),
                     const SizedBox(height: 18),
                     BadgeButton(
-                      label: 'Mula sekarang',
+                      label: context.tr('Mula sekarang', 'Get started'),
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const PrivacyView()),
                       ),
@@ -84,7 +87,7 @@ class WelcomeView extends StatelessWidget {
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(builder: (_) => const AuthView(startWithRegister: false)),
                         ),
-                        child: const Text('Saya sudah ada akaun'),
+                        child: Text(context.tr('Saya sudah ada akaun', 'I already have an account')),
                       ),
                     ),
                   ],

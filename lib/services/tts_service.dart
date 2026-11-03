@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'app_settings.dart';
 
@@ -18,6 +18,19 @@ class TtsService {
   bool _bmAvailable = true;
   TextLang? _currentLang;
 
+  bool _speaking = false;
+  String? _lastText;
+  TextLang? _lastLang;
+
+  int _interruptions = 0;
+
+  /// true semasa enjin sedang bercakap.
+  bool get isSpeaking => _speaking;
+
+  /// Bertambah setiap kali [say] menyampuk. Skrin yang membaca panjang
+  /// (contoh: hasil imbasan) guna ini untuk tahu bacaannya dipotong.
+  int get interruptions => _interruptions;
+
   Future<void> init() async {
     if (_ready) return;
     try {
@@ -36,20 +49,62 @@ class TtsService {
 
   /// Baca satu teks. Tunggu sehingga selesai (atau dihentikan dengan [stop]).
   /// [lang] kosong = kesan automatik.
-  Future<void> speak(String text, {TextLang? lang}) async {
+  /// [remember] false = jangan simpan untuk "ulang" (contoh: mesej "tiada apa untuk diulang").
+  Future<void> speak(String text, {TextLang? lang, bool remember = true}) async {
     if (text.trim().isEmpty) return;
     await init();
     final l = lang ?? detectLanguage(text);
+    if (remember) {
+      _lastText = text;
+      _lastLang = l;
+    }
     await _applyLanguage(l);
     // Profil: 0.5x – 1.5x. Android: 0.5 = kelajuan biasa.
     await _tts.setSpeechRate((AppSettings.instance.speechRate.value * 0.5).clamp(0.2, 1.0));
-    await _tts.speak(text);
+    _speaking = true;
+    try {
+      await _tts.speak(text);
+    } finally {
+      _speaking = false;
+    }
+  }
+
+  /// Sampuk suara semasa, terus cakap ayat baru.
+  Future<void> say(String text, {TextLang? lang, bool remember = true}) async {
+    _interruptions++;
+    await stop();
+    await speak(text, lang: lang, remember: remember);
+  }
+
+  /// Mesej sistem dalam bahasa pilihan pengguna (sampuk suara semasa).
+  Future<void> announce(String bm, String en, {bool remember = true}) {
+    final l = uiLang;
+    return say(l == TextLang.bm ? bm : en, lang: l, remember: remember);
+  }
+
+  /// Pengumuman bila skrin dibuka. Senyap jika dimatikan di Profil, atau
+  /// jika TalkBack aktif (elak dua suara bertindih).
+  Future<void> announceScreen(BuildContext context, String bm, String en) async {
+    if (!AppSettings.instance.autoAnnounce.value) return;
+    if (MediaQuery.maybeOf(context)?.accessibleNavigation ?? false) return;
+    await announce(bm, en);
+  }
+
+  /// Ulang ayat terakhir.
+  Future<void> repeatLast() async {
+    final t = _lastText;
+    if (t == null) {
+      await announce('Tiada apa untuk diulang.', 'Nothing to repeat.', remember: false);
+      return;
+    }
+    await say(t, lang: _lastLang);
   }
 
   Future<void> stop() async {
     try {
       await _tts.stop();
     } catch (_) {}
+    _speaking = false;
   }
 
   Future<void> _applyLanguage(TextLang l) async {
