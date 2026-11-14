@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/semantics.dart'; // SemanticsService: TalkBack sebut mesej
 import 'package:flutter_tts/flutter_tts.dart';
 import 'app_settings.dart';
+import 'database_service.dart';
 
 enum TextLang { bm, en }
 
@@ -174,6 +175,14 @@ class TtsService {
     for (final w in words) {
       if (_bmWords.contains(w)) bm++;
       if (_enWords.contains(w)) en++;
+    }
+    // Istilah akademik (jadual academic_terms): nota kuliah penuh istilah
+    // seperti "hipotesis" / "algorithm" yang tiada dalam senarai biasa.
+    final db = DatabaseService.instance;
+    if (db.isReady) {
+      final (aBm, aEn) = db.academicLanguageScore(text);
+      bm += aBm;
+      en += aEn;
     }
     if (bm == en) return uiLang; // tak pasti -> ikut bahasa pilihan pengguna
     return bm > en ? TextLang.bm : TextLang.en;

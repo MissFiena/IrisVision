@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../services/database_service.dart';
 import '../../services/ocr_service.dart';
 import '../../services/lang.dart';
 import '../../services/tts_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
+import 'terms_view.dart';
 
 /// C7 · Keputusan Imbasan.
 /// Teks dibaca AUTOMATIK satu blok demi satu blok. Pengguna boleh
@@ -30,6 +32,18 @@ class _ScanResultViewState extends State<ScanResultView> {
   bool _playing = false;
   int _runId = 0; // setiap kali main semula, larian lama dibatalkan
   int _openedAtMs = 0;
+
+  /// Istilah akademik dalam teks ini (jadual academic_terms).
+  late final List<FoundTerm> _terms = DatabaseService.instance.isReady
+      ? DatabaseService.instance.findAcademicTerms(widget.result.fullText)
+      : const [];
+
+  Future<void> _openTerms() async {
+    HapticFeedback.selectionClick();
+    await _pause(quiet: true);
+    if (!mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => TermsView(terms: _terms)));
+  }
   bool _disposed = false;
 
   List<OcrBlock> get _blocks => widget.result.blocks;
@@ -174,6 +188,45 @@ class _ScanResultViewState extends State<ScanResultView> {
                 style: TextStyle(fontSize: 15, color: p.textSecondary),
               ),
             ),
+            if (_terms.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Semantics(
+                  button: true,
+                  label: context.tr('Istilah akademik, ${_terms.length}', 'Academic terms, ${_terms.length}'),
+                  hint: context.tr('Ketik dua kali untuk dengar terjemahan', 'Double tap to hear translations'),
+                  excludeSemantics: true,
+                  onTap: _openTerms,
+                  onDidGainAccessibilityFocus: _onCardFocus, // berhenti baca bila TalkBack fokus
+                  child: Material(
+                    color: p.tint,
+                    borderRadius: BorderRadius.circular(18),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: _openTerms,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 56),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          child: Row(
+                            children: [
+                              Icon(Icons.translate_rounded, size: 26, color: p.accent),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  context.tr('Istilah akademik (${_terms.length})', 'Academic terms (${_terms.length})'),
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: p.textPrimary),
+                                ),
+                              ),
+                              Icon(Icons.chevron_right, size: 28, color: p.accent),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             const SizedBox(height: 12),
             Expanded(
               child: ListView.separated(

@@ -82,12 +82,14 @@ const List<HelpTopic> kHelpTopics = [
       'Ketik di mana-mana pada skrin.',
       'App baca teks satu perenggan demi satu.',
       'Tempat gelap? Tekan butang lampu.',
+      'Ada istilah akademik? Tekan Istilah akademik untuk dengar terjemahan.',
     ],
     en: [
       'Hold the phone one hand-span from the paper.',
       'Tap anywhere on the screen.',
       'The app reads the text one paragraph at a time.',
       'Too dark? Press the light button.',
+      'Academic words? Press Academic terms to hear translations.',
     ],
   ),
   HelpTopic(

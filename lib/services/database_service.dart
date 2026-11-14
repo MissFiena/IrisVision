@@ -11,6 +11,29 @@ String historyTitleFor(String text) {
   return '${space > 20 ? cut.substring(0, space) : cut}…';
 }
 
+/// Satu istilah akademik dengan padanan BM dan EN.
+class AcademicTerm {
+  final int id;
+  final String bm, en, categoryBm, categoryEn;
+  const AcademicTerm({
+    required this.id,
+    required this.bm,
+    required this.en,
+    required this.categoryBm,
+    required this.categoryEn,
+  });
+}
+
+/// Istilah yang dijumpai dalam teks, dan bahasa ia ditulis.
+class FoundTerm {
+  final AcademicTerm term;
+  final bool foundInBm;
+  const FoundTerm(this.term, {required this.foundInBm});
+
+  String get asWritten => foundInBm ? term.bm : term.en;
+  String get translation => foundInBm ? term.en : term.bm;
+}
+
 /// Satu rekod Sejarah imbasan.
 class ScanRecord {
   final int id;
@@ -60,7 +83,7 @@ class DatabaseService {
   static final DatabaseService instance = DatabaseService._();
 
   static const String _fileName = 'irisvision.db';
-  static const int _version = 2; // v2: user_settings.tutorial_seen
+  static const int _version = 3; // v2: user_settings.tutorial_seen, v3: istilah akademik
 
   Database? _db;
   bool get isReady => _db != null;
@@ -88,6 +111,7 @@ class DatabaseService {
         onUpgrade: _onUpgrade,
       );
       await _loadLabelNames();
+      await _loadAcademicTerms();
       debugPrint('✅ Database dibuka: ${_labelNames.length} label objek');
     } catch (e) {
       debugPrint('❌ Ralat membuka database: $e');
@@ -154,7 +178,33 @@ class DatabaseService {
       b.insert('object_labels',
           {'category_id': _kCampusCategory, 'model_source': 'campus', 'model_key': l.$1, 'name_bm': l.$2, 'name_en': l.$3});
     }
+    _createAcademic(b);
     await b.commit(noResult: true);
+  }
+
+  /// v3: perbendaharaan kata akademik BM <-> EN (skop proposal 1.5.1(5), Gantt 12.1).
+  /// Digunakan untuk (1) memilih suara BM/EN yang betul semasa membaca nota,
+  /// dan (2) skrin Istilah, yang menterjemah istilah dalam teks imbasan.
+  void _createAcademic(Batch b) {
+    b.execute('''
+      CREATE TABLE academic_categories (
+        id      INTEGER PRIMARY KEY,
+        name_bm TEXT NOT NULL,
+        name_en TEXT NOT NULL
+      )''');
+    b.execute('''
+      CREATE TABLE academic_terms (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        category_id INTEGER NOT NULL REFERENCES academic_categories(id),
+        term_bm     TEXT NOT NULL UNIQUE,
+        term_en     TEXT NOT NULL UNIQUE
+      )''');
+    for (final c in _kAcademicCategories) {
+      b.insert('academic_categories', {'id': c.$1, 'name_bm': c.$2, 'name_en': c.$3});
+    }
+    for (final t in _kAcademicSeed) {
+      b.insert('academic_terms', {'category_id': t.$1, 'term_bm': t.$2, 'term_en': t.$3});
+    }
   }
 
   /// Naik taraf database lama tanpa padam data pengguna.
@@ -162,6 +212,11 @@ class DatabaseService {
     if (oldVersion < 2) {
       await db.execute('ALTER TABLE user_settings ADD COLUMN tutorial_seen INTEGER NOT NULL DEFAULT 0 '
           'CHECK (tutorial_seen IN (0,1))');
+    }
+    if (oldVersion < 3) {
+      final b = db.batch();
+      _createAcademic(b);
+      await b.commit(noResult: true);
     }
   }
 
@@ -184,6 +239,71 @@ class DatabaseService {
     final n = _labelNames[key.toLowerCase()];
     if (n != null) return bm ? n.$1 : n.$2;
     return key.isEmpty ? key : key[0].toUpperCase() + key.substring(1).toLowerCase();
+  }
+
+  // ========================== ISTILAH AKADEMIK ==========================
+  final Map<String, AcademicTerm> _termByBm = {};
+  final Map<String, AcademicTerm> _termByEn = {};
+
+  Future<void> _loadAcademicTerms() async {
+    final rows = await _d.rawQuery('''
+      SELECT t.id, t.term_bm, t.term_en, c.name_bm AS cat_bm, c.name_en AS cat_en
+      FROM academic_terms t JOIN academic_categories c ON c.id = t.category_id''');
+    _termByBm.clear();
+    _termByEn.clear();
+    for (final r in rows) {
+      final t = AcademicTerm(
+        id: r['id'] as int,
+        bm: r['term_bm'] as String,
+        en: r['term_en'] as String,
+        categoryBm: r['cat_bm'] as String,
+        categoryEn: r['cat_en'] as String,
+      );
+      _termByBm[t.bm.toLowerCase()] = t;
+      _termByEn[t.en.toLowerCase()] = t;
+    }
+  }
+
+  static List<String> _tokens(String text) =>
+      text.toLowerCase().split(RegExp(r'[^a-z]+')).where((w) => w.isNotEmpty).toList();
+
+  /// Istilah akademik dalam teks, ikut susunan muncul (tiada ulangan).
+  /// Semak frasa dua perkataan dahulu (contoh "soal selidik"), kemudian satu perkataan.
+  List<FoundTerm> findAcademicTerms(String text) {
+    final w = _tokens(text);
+    final seen = <int>{};
+    final out = <FoundTerm>[];
+    var i = 0;
+    while (i < w.length) {
+      FoundTerm? hit;
+      var used = 1;
+      if (i + 1 < w.length) {
+        final two = '${w[i]} ${w[i + 1]}';
+        hit = _match(two);
+        if (hit != null) used = 2;
+      }
+      hit ??= _match(w[i]);
+      if (hit != null && seen.add(hit.term.id)) out.add(hit);
+      i += used;
+    }
+    return out;
+  }
+
+  FoundTerm? _match(String s) {
+    final bm = _termByBm[s];
+    if (bm != null) return FoundTerm(bm, foundInBm: true);
+    final en = _termByEn[s];
+    if (en != null) return FoundTerm(en, foundInBm: false);
+    return null;
+  }
+
+  /// Bilangan istilah akademik BM dan EN dalam teks, untuk bantu pilih suara.
+  (int, int) academicLanguageScore(String text) {
+    var bm = 0, en = 0;
+    for (final f in findAcademicTerms(text)) {
+      f.foundInBm ? bm++ : en++;
+    }
+    return (bm, en);
   }
 
   // ============================== USERS ==============================
@@ -367,4 +487,152 @@ const List<(String, String, String)> _kCampusSeed = [
   ('couch', 'Sofa', 'Couch'),
   ('opened door', 'Pintu terbuka', 'Opened door'),
   ('pole', 'Tiang', 'Pole'),
+];
+
+// ============================ ISTILAH AKADEMIK ============================
+// Istilah yang SAMA dalam BM dan EN (contoh "data", "formula") tidak
+// dimasukkan: tiada terjemahan, dan tak membantu memilih suara.
+const List<(int, String, String)> _kAcademicCategories = [
+  (1, 'Penyelidikan', 'Research'),
+  (2, 'Sains', 'Science'),
+  (3, 'Matematik', 'Mathematics'),
+  (4, 'Pengkomputeran', 'Computing'),
+  (5, 'Pembelajaran', 'Learning'),
+];
+
+// (kategori, BM, EN)
+const List<(int, String, String)> _kAcademicSeed = [
+  // 1. Penyelidikan
+  (1, 'kajian', 'study'),
+  (1, 'penyelidikan', 'research'),
+  (1, 'hipotesis', 'hypothesis'),
+  (1, 'kaedah', 'method'),
+  (1, 'metodologi', 'methodology'),
+  (1, 'objektif', 'objective'),
+  (1, 'skop', 'scope'),
+  (1, 'dapatan', 'findings'),
+  (1, 'kesimpulan', 'conclusion'),
+  (1, 'pengenalan', 'introduction'),
+  (1, 'abstrak', 'abstract'),
+  (1, 'rujukan', 'reference'),
+  (1, 'responden', 'respondent'),
+  (1, 'soal selidik', 'questionnaire'),
+  (1, 'temu bual', 'interview'),
+  (1, 'sampel', 'sample'),
+  (1, 'populasi', 'population'),
+  (1, 'analisis', 'analysis'),
+  (1, 'perbincangan', 'discussion'),
+  (1, 'cadangan', 'recommendation'),
+  (1, 'batasan', 'limitation'),
+  (1, 'sorotan literatur', 'literature review'),
+  (1, 'kerangka konsep', 'conceptual framework'),
+  (1, 'pemboleh ubah', 'variable'),
+  (1, 'signifikan', 'significant'),
+  (1, 'instrumen', 'instrument'),
+  (1, 'kebolehpercayaan', 'reliability'),
+  (1, 'kesahan', 'validity'),
+  (1, 'eksperimen', 'experiment'),
+  (1, 'pemerhatian', 'observation'),
+  // 2. Sains
+  (2, 'sel', 'cell'),
+  (2, 'tenaga', 'energy'),
+  (2, 'daya', 'force'),
+  (2, 'jisim', 'mass'),
+  (2, 'halaju', 'velocity'),
+  (2, 'pecutan', 'acceleration'),
+  (2, 'suhu', 'temperature'),
+  (2, 'tekanan', 'pressure'),
+  (2, 'isipadu', 'volume'),
+  (2, 'ketumpatan', 'density'),
+  (2, 'tindak balas', 'reaction'),
+  (2, 'unsur', 'element'),
+  (2, 'sebatian', 'compound'),
+  (2, 'molekul', 'molecule'),
+  (2, 'organisma', 'organism'),
+  (2, 'fotosintesis', 'photosynthesis'),
+  (2, 'graviti', 'gravity'),
+  (2, 'elektrik', 'electricity'),
+  (2, 'gelombang', 'wave'),
+  (2, 'cahaya', 'light'),
+  // 3. Matematik
+  (3, 'persamaan', 'equation'),
+  (3, 'pecahan', 'fraction'),
+  (3, 'perpuluhan', 'decimal'),
+  (3, 'peratus', 'percentage'),
+  (3, 'purata', 'average'),
+  (3, 'sisihan piawai', 'standard deviation'),
+  (3, 'kebarangkalian', 'probability'),
+  (3, 'statistik', 'statistics'),
+  (3, 'fungsi', 'function'),
+  (3, 'graf', 'graph'),
+  (3, 'jadual', 'table'),
+  (3, 'kamiran', 'integral'),
+  (3, 'pembezaan', 'differentiation'),
+  (3, 'matriks', 'matrix'),
+  (3, 'vektor', 'vector'),
+  (3, 'sudut', 'angle'),
+  (3, 'segi tiga', 'triangle'),
+  (3, 'bulatan', 'circle'),
+  (3, 'luas', 'area'),
+  (3, 'nisbah', 'ratio'),
+  (3, 'kadar', 'rate'),
+  (3, 'teorem', 'theorem'),
+  // 4. Pengkomputeran
+  (4, 'algoritma', 'algorithm'),
+  (4, 'pangkalan data', 'database'),
+  (4, 'perisian', 'software'),
+  (4, 'perkakasan', 'hardware'),
+  (4, 'rangkaian', 'network'),
+  (4, 'pengaturcaraan', 'programming'),
+  (4, 'antara muka', 'interface'),
+  (4, 'pelayan', 'server'),
+  (4, 'pengguna', 'user'),
+  (4, 'kata laluan', 'password'),
+  (4, 'keselamatan', 'security'),
+  (4, 'pengesahan', 'authentication'),
+  (4, 'penyulitan', 'encryption'),
+  (4, 'kecerdasan buatan', 'artificial intelligence'),
+  (4, 'pembelajaran mesin', 'machine learning'),
+  (4, 'sistem', 'system'),
+  (4, 'aplikasi', 'application'),
+  (4, 'storan', 'storage'),
+  (4, 'memori', 'memory'),
+  (4, 'pemproses', 'processor'),
+  (4, 'skrin', 'screen'),
+  (4, 'muat turun', 'download'),
+  (4, 'muat naik', 'upload'),
+  (4, 'reka bentuk', 'design'),
+  (4, 'keperluan', 'requirement'),
+  (4, 'pengujian', 'testing'),
+  (4, 'penyahpepijatan', 'debugging'),
+  // 5. Pembelajaran
+  (5, 'kuliah', 'lecture'),
+  (5, 'tugasan', 'assignment'),
+  (5, 'peperiksaan', 'examination'),
+  (5, 'kuiz', 'quiz'),
+  (5, 'markah', 'marks'),
+  (5, 'gred', 'grade'),
+  (5, 'kursus', 'course'),
+  (5, 'pensyarah', 'lecturer'),
+  (5, 'penyelia', 'supervisor'),
+  (5, 'fakulti', 'faculty'),
+  (5, 'jabatan', 'department'),
+  (5, 'universiti', 'university'),
+  (5, 'perpustakaan', 'library'),
+  (5, 'nota', 'notes'),
+  (5, 'buku teks', 'textbook'),
+  (5, 'bab', 'chapter'),
+  (5, 'halaman', 'page'),
+  (5, 'tarikh akhir', 'deadline'),
+  (5, 'pembentangan', 'presentation'),
+  (5, 'laporan', 'report'),
+  (5, 'projek', 'project'),
+  (5, 'kehadiran', 'attendance'),
+  (5, 'jadual waktu', 'timetable'),
+  (5, 'definisi', 'definition'),
+  (5, 'contoh', 'example'),
+  (5, 'ringkasan', 'summary'),
+  (5, 'penerangan', 'explanation'),
+  (5, 'soalan', 'question'),
+  (5, 'jawapan', 'answer'),
 ];

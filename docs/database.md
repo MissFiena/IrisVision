@@ -9,6 +9,7 @@ erDiagram
     users ||--|| user_settings : has
     users ||--o{ scan_history : owns
     object_categories ||--o{ object_labels : groups
+    academic_categories ||--o{ academic_terms : groups
 
     users {
         TEXT id PK "Firebase UID"
@@ -39,6 +40,17 @@ erDiagram
         INTEGER id PK
         TEXT name_bm
         TEXT name_en
+    }
+    academic_categories {
+        INTEGER id PK
+        TEXT name_bm
+        TEXT name_en
+    }
+    academic_terms {
+        INTEGER id PK
+        INTEGER category_id FK
+        TEXT term_bm "UNIQUE"
+        TEXT term_en "UNIQUE"
     }
     object_labels {
         INTEGER id PK
@@ -80,8 +92,18 @@ erDiagram
 | object_labels | model_source | TEXT | CHECK coco/campus, UNIQUE with model_key | Which model the label belongs to |
 | object_labels | model_key | TEXT | NOT NULL | Class name output by the model, e.g. `cell phone` |
 | object_labels | name_bm / name_en | TEXT | NOT NULL | Name shown and spoken, e.g. Telefon / Phone |
+| academic_categories | id | INTEGER | PK | Category ID (Research, Science, Mathematics, Computing, Learning) |
+| academic_categories | name_bm / name_en | TEXT | NOT NULL | Category name in BM and English |
+| academic_terms | id | INTEGER | PK, AUTOINCREMENT | Term ID |
+| academic_terms | category_id | INTEGER | FK → academic_categories.id | Category of the term |
+| academic_terms | term_bm | TEXT | NOT NULL, UNIQUE | Academic term in BM, e.g. hipotesis |
+| academic_terms | term_en | TEXT | NOT NULL, UNIQUE | Matching term in English, e.g. hypothesis |
 
-Schema version 2 added `tutorial_seen`. Phones that already have version 1 are upgraded with `ALTER TABLE user_settings ADD COLUMN`, so existing settings and history are kept.
+Schema version 2 added `tutorial_seen`. Schema version 3 added `academic_categories` and `academic_terms` (128 terms in 5 categories), created through `onUpgrade` so existing settings and history are kept.
+
+The academic vocabulary is used in two places: (1) the voice picks the correct BM or English voice for each paragraph by counting academic terms, which common-word lists miss in lecture notes; (2) the scan result screen lists the academic terms found in the text, and the user can hear each one with its translation.
+
+Phones that already have version 1 get `tutorial_seen` through `ALTER TABLE user_settings ADD COLUMN`.
 
 Seed data: 13 categories, 80 COCO labels and 10 campus labels (from `campus_labels.txt`) are inserted when the database is first created.
 
@@ -93,7 +115,7 @@ Seed data: 13 categories, 80 COCO labels and 10 campus labels (from `campus_labe
 
 **3NF.** No non-key column depends on another non-key column:
 - User details (email, name) live only in `users`. `scan_history` and `user_settings` store just `user_id`.
-- Category names live only in `object_categories`. `object_labels` stores just `category_id`, so renaming a category changes one row.
+- Category names live only in `object_categories` and `academic_categories`. `object_labels` stores just `category_id`, so renaming a category changes one row.
 - Settings were moved out of `users` into `user_settings`, because they describe app preferences, not the person.
 - Derived values such as word count and paragraph count are calculated from `content` when needed, not stored.
 
@@ -120,5 +142,6 @@ Authentication is handled by Firebase. Authorisation is enforced in the database
 | `lib/services/app_settings.dart` | Loads settings after login and saves every change |
 | `lib/views/auth_gate.dart` | Registers the user and loads settings before Home opens |
 | `lib/views/history/history_view.dart` | History screen (Read, Update, Delete) |
+| `lib/views/scan/terms_view.dart` | Academic terms found in a scan, with BM ↔ English translation |
 | `lib/views/scan/scan_text_view.dart` | Saves each scan (Create) |
 | `lib/views/live_detection_view.dart` | Gets BM/EN object names from `object_labels` |
