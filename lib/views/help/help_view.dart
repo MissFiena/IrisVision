@@ -136,12 +136,12 @@ const List<HelpTopic> kHelpTopics = [
     bm: [
       'Tukar bahasa, kelajuan suara dan tema di sini.',
       'Tetapan kekal walaupun app ditutup.',
-      'Log keluar juga di sini.',
+      'Log keluar dan padam akaun juga di sini.',
     ],
     en: [
       'Change the language, voice speed and theme here.',
       'Settings stay even after the app is closed.',
-      'Sign out is here too.',
+      'Sign out and delete account are here too.',
     ],
   ),
   HelpTopic(
@@ -389,6 +389,15 @@ class _HelpTopicViewState extends State<HelpTopicView> {
     }
   }
 
+  /// TalkBack fokus pada butang -> suara app berhenti, supaya hanya
+  /// TalkBack yang bercakap.
+  void _quietForTalkBack() {
+    if (!_playing) return;
+    _run++;
+    _tts.stop();
+    setState(() => _playing = false);
+  }
+
   /// Cuba arahan: app beritahu apa yang difahami, TIDAK buka skrin lain.
   Future<void> _practise() async {
     _run++;
@@ -471,20 +480,15 @@ class _HelpTopicViewState extends State<HelpTopicView> {
               label: _playing ? context.tr('Berhenti', 'Stop') : context.tr('Dengar semula', 'Listen again'),
               badgeIcon: _playing ? Icons.stop_rounded : Icons.volume_up_rounded,
               onPressed: _toggle,
+              onFocus: _quietForTalkBack,
             ),
             if (topic.practice) ...[
               const SizedBox(height: 12),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(64),
-                  foregroundColor: p.accent,
-                  side: BorderSide(color: p.accent, width: 2),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  textStyle: const TextStyle(fontFamily: AppFonts.heading, fontSize: 19, fontWeight: FontWeight.w700),
-                ),
-                icon: const Icon(Icons.mic, size: 26),
-                label: Text(context.tr('Cuba arahan suara', 'Try a voice command')),
+              BadgeButton(
+                label: context.tr('Cuba arahan suara', 'Try a voice command'),
+                badgeIcon: Icons.mic,
                 onPressed: _practise,
+                onFocus: _quietForTalkBack,
               ),
               if (_lastTry != null) ...[
                 const SizedBox(height: 12),

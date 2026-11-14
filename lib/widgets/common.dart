@@ -131,12 +131,17 @@ class BadgeButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool loading;
 
+  /// Dipanggil bila TalkBack fokus pada butang ini (contoh: hentikan suara app
+  /// supaya TalkBack tak bercakap serentak).
+  final VoidCallback? onFocus;
+
   const BadgeButton({
     super.key,
     required this.label,
     this.badgeIcon = Icons.arrow_forward,
     this.onPressed,
     this.loading = false,
+    this.onFocus,
   });
 
   @override
@@ -149,6 +154,7 @@ class BadgeButton extends StatelessWidget {
       label: loading ? '$label. ${context.tr('Sedang diproses', 'Processing')}' : label,
       excludeSemantics: true,
       onTap: enabled ? onPressed : null,
+      onDidGainAccessibilityFocus: onFocus,
       child: Material(
         color: enabled ? p.primary : p.surfaceAlt,
         borderRadius: BorderRadius.circular(AppTheme.radius),

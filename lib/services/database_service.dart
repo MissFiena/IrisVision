@@ -198,6 +198,9 @@ class DatabaseService {
     await _d.update('users', {'email': email, 'display_name': displayName}, where: 'id = ?', whereArgs: [id]);
   }
 
+  /// Padam pengguna. ON DELETE CASCADE padam tetapan + semua sejarahnya.
+  Future<void> deleteUser(String id) => _d.delete('users', where: 'id = ?', whereArgs: [id]);
+
   // ============================ USER_SETTINGS ============================
   Future<Map<String, Object?>?> getSettings(String userId) async {
     final rows = await _d.query('user_settings', where: 'user_id = ?', whereArgs: [userId], limit: 1);

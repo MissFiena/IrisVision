@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'database_service.dart';
 import 'lang.dart';
 
 /// Hasil operasi auth: berjaya, atau mesej ralat yang selamat untuk dipaparkan.
@@ -182,6 +183,53 @@ class AuthService {
   }
 
   Future<void> signOut() => _auth.signOut();
+
+  // --------------------------------------------------------------------------
+  // PADAM AKAUN (PDPA 2010: hak pengguna untuk padam data)
+  // --------------------------------------------------------------------------
+  /// Akaun Google -> tiada kata laluan, sahkan dengan Google.
+  bool get isGoogleAccount =>
+      _auth.currentUser?.providerData.any((i) => i.providerId == 'google.com') ?? false;
+
+  /// 1. Sahkan semula identiti (Firebase wajibkan untuk tindakan sensitif).
+  /// 2. Padam akaun di Firebase.
+  /// 3. Padam data dalam telefon (users -> CASCADE tetapan + sejarah).
+  /// Data tempatan dipadam SELEPAS Firebase berjaya, supaya kalau gagal,
+  /// tiada apa yang hilang.
+  Future<AuthResult> deleteAccount({String? password}) async {
+    final user = _auth.currentUser;
+    if (user == null) return AuthResult.failure(_genericError);
+    final uid = user.uid;
+    try {
+      if (isGoogleAccount) {
+        await user.reauthenticateWithProvider(GoogleAuthProvider());
+      } else {
+        final email = user.email;
+        if (email == null || password == null || password.isEmpty) {
+          return AuthResult.failure(t('Sila masukkan kata laluan.', 'Please enter your password.'));
+        }
+        await user.reauthenticateWithCredential(EmailAuthProvider.credential(email: email, password: password));
+      }
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'web-context-canceled' || e.code == 'canceled' || e.code == 'user-mismatch') {
+        return AuthResult.failure(t('Pengesahan dibatalkan. Akaun tidak dipadam.', 'Confirmation cancelled. Account not deleted.'));
+      }
+      if (e.code == 'wrong-password' || e.code == 'invalid-credential' || e.code == 'invalid-login-credentials') {
+        return AuthResult.failure(t('Kata laluan tidak betul. Akaun tidak dipadam.', 'Incorrect password. Account not deleted.'));
+      }
+      return AuthResult.failure(_message(e));
+    } catch (e) {
+      debugPrint('deleteAccount error: $e');
+      return AuthResult.failure(_genericError);
+    }
+    try {
+      if (DatabaseService.instance.isReady) await DatabaseService.instance.deleteUser(uid);
+    } catch (e) {
+      debugPrint('deleteUser (local) error: $e');
+    }
+    return const AuthResult.success();
+  }
 
   // --------------------------------------------------------------------------
   // MESEJ RALAT

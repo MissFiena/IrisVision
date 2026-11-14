@@ -47,6 +47,72 @@ class ProfileView extends StatelessWidget {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
+  /// Padam akaun: (1) sahkan niat, (2) sahkan identiti, (3) padam.
+  /// Dialog dibaca sendiri oleh TalkBack; hint() untuk pengguna tanpa TalkBack.
+  Future<void> _confirmDelete(BuildContext context) async {
+    HapticFeedback.mediumImpact();
+    final tts = TtsService.instance;
+    const warnBm = 'Akaun, tetapan dan semua sejarah imbasan akan dipadam selama-lamanya. Tidak boleh dibatalkan.';
+    const warnEn = 'Your account, settings and all scan history will be deleted forever. This cannot be undone.';
+    tts.hint('Padam akaun? $warnBm', 'Delete account? $warnEn');
+
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.tr('Padam akaun?', 'Delete account?')),
+        content: Text(context.tr(warnBm, warnEn), style: const TextStyle(fontSize: 18, height: 1.4)),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(context.tr('Batal', 'Cancel'))),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(context.tr('Teruskan', 'Continue'), style: TextStyle(color: context.pal.error)),
+          ),
+        ],
+      ),
+    );
+    if (go != true || !context.mounted) return;
+
+    final auth = AuthService.instance;
+    String? password;
+    if (!auth.isGoogleAccount) {
+      tts.hint('Masukkan kata laluan untuk sahkan.', 'Enter your password to confirm.');
+      final controller = TextEditingController();
+      password = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(context.tr('Sahkan kata laluan', 'Confirm password')),
+          content: PasswordField(
+            controller: controller,
+            label: context.tr('Kata laluan', 'Password'),
+            onSubmitted: () => Navigator.of(context).pop(controller.text),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(context.tr('Batal', 'Cancel'))),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(controller.text),
+              child: Text(context.tr('Padam akaun', 'Delete account'), style: TextStyle(color: context.pal.error)),
+            ),
+          ],
+        ),
+      );
+      Future<void>.delayed(const Duration(milliseconds: 500), controller.dispose);
+      if (password == null || !context.mounted) return;
+    }
+
+    tts.announce('Sedang memadam akaun.', 'Deleting account.', remember: false);
+    final r = await auth.deleteAccount(password: password);
+    if (!context.mounted) return;
+    if (!r.ok) {
+      final msg = r.message ?? t('Gagal memadam akaun.', 'Could not delete the account.');
+      showInfo(context, msg); // TalkBack baca snackbar
+      tts.hint(msg, msg);
+      return;
+    }
+    // berjaya: Firebase log keluar sendiri -> AuthGate tunjuk skrin Welcome
+    tts.announce('Akaun anda telah dipadam.', 'Your account has been deleted.', remember: false);
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.pal;
@@ -232,6 +298,18 @@ class ProfileView extends StatelessWidget {
               icon: const Icon(Icons.logout, size: 26),
               label: Text(context.tr('Log keluar', 'Sign out')),
               onPressed: () => _confirmSignOut(context),
+            ),
+            const SizedBox(height: 14),
+            // ---------------- padam akaun (PDPA) ----------------
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                minimumSize: const Size.fromHeight(56),
+                foregroundColor: p.error,
+                textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
+              icon: const Icon(Icons.delete_forever_outlined, size: 24),
+              label: Text(context.tr('Padam akaun', 'Delete account')),
+              onPressed: () => _confirmDelete(context),
             ),
           ],
         ),

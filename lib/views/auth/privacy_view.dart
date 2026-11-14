@@ -21,7 +21,7 @@ class PrivacyView extends StatelessWidget {
             '3. Akaun diurus oleh Google Firebase Authentication. Kata laluan disimpan '
             'dalam bentuk hash dan tidak boleh dilihat oleh sesiapa, termasuk pembangun.\n\n'
             '4. Data tidak dijual, disewa atau dikongsi dengan pihak ketiga.\n\n'
-            '5. Anda boleh minta akaun dan data anda dipadam pada bila-bila masa.\n\n'
+            '5. Anda boleh padam akaun dan semua data anda pada bila-bila masa di Profil.\n\n'
             '6. IrisVision ialah alat bantuan. Ia tidak menggantikan tongkat putih, '
             'anjing pemandu atau latihan orientasi dan mobiliti.',
         'This notice follows the Personal Data Protection Act 2010 (PDPA).\n\n'
@@ -33,7 +33,7 @@ class PrivacyView extends StatelessWidget {
             '3. Accounts are managed by Google Firebase Authentication. Passwords are stored '
             'as a hash and cannot be seen by anyone, including the developer.\n\n'
             '4. Data is not sold, rented or shared with third parties.\n\n'
-            '5. You can ask for your account and data to be deleted at any time.\n\n'
+            '5. You can delete your account and all your data at any time in Profile.\n\n'
             '6. IrisVision is an assistive tool. It does not replace a white cane, '
             'a guide dog or orientation and mobility training.',
       );

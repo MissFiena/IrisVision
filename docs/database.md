@@ -106,6 +106,7 @@ Seed data: 13 categories, 80 COCO labels and 10 campus labels (from `campus_labe
 | Update | History: Rename button | `UPDATE scan_history SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?` |
 | Delete | History: Delete button and Delete all | `DELETE FROM scan_history WHERE id = ? AND user_id = ?` |
 | Create/Update | Profile: any setting change is saved right away | `INSERT OR REPLACE INTO user_settings` |
+| Delete | Profile: Delete account (after password or Google re-check, and after Firebase deletes the account) | `DELETE FROM users WHERE id = ?` (CASCADE removes settings and history) |
 
 Authentication is handled by Firebase. Authorisation is enforced in the database layer: every History query filters by the signed-in user's Firebase UID, so a user can only see, rename or delete their own records, even when several accounts sign in on the same phone.
 
