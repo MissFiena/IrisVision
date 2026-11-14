@@ -43,6 +43,7 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
   final TtsService _tts = TtsService.instance;
   final AppSettings _settings = AppSettings.instance;
   bool _announced = false;
+  int _quietUntilMs = 0; // TalkBack: senyap sekejap bila skrin baru dibuka
   String _sceneKey = ''; // objek yang terakhir disebut
   String _pendingKey = ''; // objek dalam frame terkini (belum tentu stabil)
   int _pendingCount = 0;
@@ -138,6 +139,8 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
       });
       if (!_announced && mounted) {
         _announced = true;
+        // TalkBack baca skrin dahulu; objek mula disebut selepas itu
+        if (_tts.screenReaderOn) _quietUntilMs = DateTime.now().millisecondsSinceEpoch + 4000;
         _tts.announceScreen(
           context,
           'Kesan objek. Halakan kamera ke hadapan.',
@@ -235,6 +238,7 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
   void _maybeSpeak(DetectionResult r) {
     if (!_settings.speakDetections.value || !_announced) return;
     final now = DateTime.now().millisecondsSinceEpoch;
+    if (now < _quietUntilMs) return;
     final top = _top(r);
 
     if (top.isEmpty) {
@@ -276,12 +280,20 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
     final on = !_settings.speakDetections.value;
     _settings.speakDetections.value = on;
     HapticFeedback.selectionClick();
+    // TalkBack sudah sebut "on/off" untuk butang ini -> hint sahaja
     if (on) {
       _sceneKey = ''; // sebut semula objek semasa
-      _tts.announce('Suara dihidupkan.', 'Voice on.', remember: false);
+      _tts.hint('Suara dihidupkan.', 'Voice on.');
     } else {
-      _tts.announce('Suara dimatikan.', 'Voice off.', remember: false);
+      _tts.hint('Suara dimatikan.', 'Voice off.');
     }
+  }
+
+  /// Pengguna TalkBack leret ke butang -> hentikan suara objek sekejap
+  /// supaya TalkBack sahaja yang bercakap.
+  void _quietForTalkBack() {
+    _tts.stop();
+    _quietUntilMs = DateTime.now().millisecondsSinceEpoch + 3000;
   }
 
   @override
@@ -438,6 +450,8 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
                     toggled: on,
                     label: context.tr('Suara objek', 'Object voice'),
                     excludeSemantics: true,
+                    onTap: _toggleVoice,
+                    onDidGainAccessibilityFocus: _quietForTalkBack,
                     child: Material(
                       color: on ? p.highlight : p.surface,
                       borderRadius: BorderRadius.circular(20),

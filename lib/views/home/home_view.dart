@@ -7,6 +7,7 @@ import '../../services/tts_service.dart';
 import '../../services/voice_command_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
+import '../help/help_view.dart';
 import '../history/history_view.dart';
 import '../live_detection_view.dart';
 import '../profile/profile_view.dart';
@@ -31,11 +32,32 @@ class _HomeViewState extends State<HomeView> {
     // sebut susun atur skrin sekali bila mula masuk
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      if (!AppSettings.instance.tutorialSeen.value) {
+        _firstTimeGuide(); // akaun baru: ucapan selamat datang sekali sahaja
+        return;
+      }
       TtsService.instance.announceScreen(
         context,
         'Skrin utama. Atas, kesan objek. Bawah, imbas teks.',
         'Home screen. Top, object detection. Bottom, scan text.',
       );
+    });
+  }
+
+  /// Kali pertama akaun ini log masuk: ucapan suara ringkas (tiada pop-up).
+  /// TalkBack aktif -> TalkBack sendiri yang sebut (suara tak bertindih).
+  /// TalkBack tiada -> suara app.
+  void _firstTimeGuide() {
+    AppSettings.instance.tutorialSeen.value = true; // disimpan dalam user_settings
+    final msg = t(
+      'Selamat datang ke IrisVision. Atas skrin untuk kesan objek, bawah untuk imbas teks. '
+          'Untuk panduan, tekan Bantuan, butang kedua dari kanan di bawah.',
+      'Welcome to IrisVision. Top of the screen detects objects, bottom scans text. '
+          'For a guide, press Help, the second button from the right at the bottom.',
+    );
+    // TalkBack hidup -> TalkBack yang sebut, selepas dia habis baca skrin
+    Future<void>.delayed(const Duration(seconds: 1), () {
+      if (mounted) TtsService.instance.announce(msg, msg);
     });
   }
 
@@ -52,12 +74,6 @@ class _HomeBody extends StatelessWidget {
     if (h >= 12 && h < 14) return context.tr('Selamat tengah hari', 'Good afternoon');
     if (h >= 14 && h < 19) return context.tr('Selamat petang', 'Good evening');
     return context.tr('Selamat malam', 'Good night');
-  }
-
-  void _soon(BuildContext context, String what) {
-    final msg = t('$what akan datang dalam kemas kini seterusnya.', '$what is coming in the next update.');
-    showInfo(context, msg);
-    TtsService.instance.say(msg, lang: TtsService.instance.uiLang);
   }
 
   Future<void> _open(BuildContext context, Widget page) async {
@@ -85,22 +101,23 @@ class _HomeBody extends StatelessWidget {
       case VoiceAction.scan:
         _open(context, const ScanTextView());
       case VoiceAction.profile:
-        tts.announce('Membuka profil.', 'Opening profile.');
+        tts.hint('Membuka profil.', 'Opening profile.'); // TalkBack baca skrin baru sendiri
         _open(context, const ProfileView());
       case VoiceAction.history:
         _open(context, const HistoryView()); // skrin itu umumkan dirinya
       case VoiceAction.langBm:
         s.language.value = VoiceLanguage.bm;
-        tts.say('Bahasa Melayu dipilih.', lang: TextLang.bm, remember: false);
+        tts.announce('Bahasa Melayu dipilih.', 'Bahasa Melayu dipilih.', remember: false);
       case VoiceAction.langEn:
         s.language.value = VoiceLanguage.en;
-        tts.say('English selected.', lang: TextLang.en, remember: false);
+        tts.announce('English selected.', 'English selected.', remember: false);
       case VoiceAction.faster:
       case VoiceAction.slower:
         final up = result.action == VoiceAction.faster;
         final r = (s.speechRate.value + (up ? 0.25 : -0.25)).clamp(0.5, 1.5);
         s.speechRate.value = r;
-        tts.say(s.speechRateLabel(r), lang: tts.uiLang, remember: false);
+        final label = s.speechRateLabel(r);
+        tts.announce(label, label, remember: false);
       case VoiceAction.repeat:
         tts.repeatLast();
       case VoiceAction.time:
@@ -249,7 +266,7 @@ class _HomeBody extends StatelessWidget {
               child: _Dock(
                 onHistory: () => _open(context, const HistoryView()),
                 onVoice: () => _voice(context),
-                onHelp: () => _soon(context, t('Bantuan', 'Help')),
+                onHelp: () => _open(context, const HelpView()),
                 onProfile: () => _open(context, const ProfileView()),
               ),
             ),
@@ -305,7 +322,8 @@ class _LanguageChip extends StatelessWidget {
     final s = AppSettings.instance;
     s.toggleLanguage();
     final tts = TtsService.instance;
-    tts.say(s.isBm ? 'Bahasa Melayu dipilih.' : 'English selected.', lang: tts.uiLang, remember: false);
+    final msg = s.isBm ? 'Bahasa Melayu dipilih.' : 'English selected.';
+    tts.announce(msg, msg, remember: false);
   }
 
   @override

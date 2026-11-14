@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter/semantics.dart'; // SemanticsService: TalkBack sebut mesej
 import 'package:flutter_tts/flutter_tts.dart';
 import 'app_settings.dart';
 
@@ -76,17 +77,48 @@ class TtsService {
     await speak(text, lang: lang, remember: remember);
   }
 
-  /// Mesej sistem dalam bahasa pilihan pengguna (sampuk suara semasa).
-  Future<void> announce(String bm, String en, {bool remember = true}) {
+  /// true bila TalkBack (atau pembaca skrin lain) sedang hidup.
+  bool get screenReaderOn =>
+      WidgetsBinding.instance.platformDispatcher.accessibilityFeatures.accessibleNavigation;
+
+  // ===================== PERATURAN SUARA (TalkBack dahulu) =====================
+  //  announce()       mesej sistem (berjaya, ralat, status).
+  //                   TalkBack hidup -> TalkBack yang sebut, beratur selepas apa
+  //                   yang dia sedang baca. Tak bertindih.
+  //  hint()           arahan yang TalkBack SUDAH baca sendiri (dialog, suis,
+  //                   snackbar, label skrin). TalkBack hidup -> senyap.
+  //  announceScreen() nama skrin bila dibuka. TalkBack hidup -> TalkBack sebut.
+  //  speak()/say()    KANDUNGAN sahaja (objek dikesan, teks diimbas, panduan
+  //                   yang pengguna minta dengar). Sentiasa suara app.
+
+  /// Mesej sistem dalam bahasa pilihan pengguna.
+  Future<void> announce(String bm, String en, {bool remember = true}) async {
     final l = uiLang;
-    return say(l == TextLang.bm ? bm : en, lang: l, remember: remember);
+    final text = l == TextLang.bm ? bm : en;
+    if (screenReaderOn) {
+      if (remember) {
+        _lastText = text;
+        _lastLang = l;
+      }
+      await stop(); // hanya satu suara: TalkBack
+      // ignore: deprecated_member_use
+      await SemanticsService.announce(text, TextDirection.ltr);
+      return;
+    }
+    await say(text, lang: l, remember: remember);
   }
 
-  /// Pengumuman bila skrin dibuka. Senyap jika dimatikan di Profil, atau
-  /// jika TalkBack aktif (elak dua suara bertindih).
+  /// Arahan tambahan untuk pengguna TANPA TalkBack sahaja.
+  Future<void> hint(String bm, String en) async {
+    if (screenReaderOn) return;
+    await announce(bm, en, remember: false);
+  }
+
+  /// Pengumuman bila skrin dibuka, supaya pengguna tahu dia di skrin mana.
+  /// TalkBack hidup -> TalkBack yang sebut (beratur, tak bertindih).
+  /// Senyap jika dimatikan di Profil.
   Future<void> announceScreen(BuildContext context, String bm, String en) async {
     if (!AppSettings.instance.autoAnnounce.value) return;
-    if (MediaQuery.maybeOf(context)?.accessibleNavigation ?? false) return;
     await announce(bm, en);
   }
 
@@ -95,6 +127,11 @@ class TtsService {
     final t = _lastText;
     if (t == null) {
       await announce('Tiada apa untuk diulang.', 'Nothing to repeat.', remember: false);
+      return;
+    }
+    if (screenReaderOn) {
+      // ignore: deprecated_member_use
+      await SemanticsService.announce(t, TextDirection.ltr);
       return;
     }
     await say(t, lang: _lastLang);

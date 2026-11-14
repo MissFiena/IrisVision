@@ -12,14 +12,13 @@ import '../auth/privacy_view.dart';
 class ProfileView extends StatelessWidget {
   const ProfileView({super.key});
 
-  static void _say(String bm, String en) {
-    final tts = TtsService.instance;
-    tts.say(t(bm, en), lang: tts.uiLang, remember: false);
-  }
+  /// Pengesahan pilihan. TalkBack hidup -> TalkBack yang sebut (beratur).
+  static void _say(String bm, String en) => TtsService.instance.announce(bm, en, remember: false);
 
   Future<void> _confirmSignOut(BuildContext context) async {
     HapticFeedback.mediumImpact();
-    _say('Log keluar? Anda perlu log masuk semula selepas ini.', 'Sign out? You will need to sign in again.');
+    // dialog dibaca sendiri oleh TalkBack
+    TtsService.instance.hint('Log keluar? Anda perlu log masuk semula selepas ini.', 'Sign out? You will need to sign in again.');
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -118,7 +117,8 @@ class ProfileView extends StatelessWidget {
                 value: v,
                 onChanged: (x) {
                   s.language.value = x;
-                  _say('Bahasa Melayu dipilih.', 'English selected.');
+                  // sama format dengan TalkBack: "<nama>, dipilih / selected"
+                  _say('Bahasa Melayu, dipilih.', 'English, selected.');
                 },
               ),
             ),
@@ -137,8 +137,8 @@ class ProfileView extends StatelessWidget {
                       onTap: r > 0.5 ? () => _setRate(s, r - 0.25) : null,
                     ),
                     Expanded(
+                      // tiada liveRegion: kelajuan baru disebut sekali oleh _setRate
                       child: Semantics(
-                        liveRegion: true,
                         child: Text(
                           s.speechRateLabel(r),
                           textAlign: TextAlign.center,
@@ -186,7 +186,6 @@ class ProfileView extends StatelessWidget {
             _Toggle(
               value: s.autoAnnounce,
               title: context.tr('Sebut nama skrin bila dibuka', 'Say the screen name when opened'),
-              subtitle: context.tr('Senyap bila TalkBack aktif', 'Silent when TalkBack is on'),
             ),
             const SizedBox(height: 12),
             _Toggle(
@@ -244,8 +243,8 @@ class ProfileView extends StatelessWidget {
 void _setRate(AppSettings s, double r) {
   s.speechRate.value = r.clamp(0.5, 1.5);
   // sebut kelajuan baru PADA kelajuan baru, supaya pengguna terus dengar bezanya
-  final tts = TtsService.instance;
-  tts.say(s.speechRateLabel(s.speechRate.value), lang: tts.uiLang, remember: false);
+  final label = s.speechRateLabel(s.speechRate.value);
+  TtsService.instance.announce(label, label, remember: false);
 }
 
 /// Suis hidup/mati. Bila ditukar, app sebut nama + keadaan baru.
@@ -268,8 +267,9 @@ class _Toggle extends StatelessWidget {
             onChanged: (x) {
               HapticFeedback.selectionClick();
               value.value = x;
-              final tts = TtsService.instance;
-              tts.say('$title, ${x ? t('hidup', 'on') : t('mati', 'off')}', lang: tts.uiLang, remember: false);
+              // TalkBack sudah sebut "hidup/mati" untuk suis -> app senyap
+              final state = x ? t('hidup', 'on') : t('mati', 'off');
+              TtsService.instance.hint('$title, $state', '$title, $state');
             },
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),

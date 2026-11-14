@@ -16,6 +16,7 @@ class AppSettings {
       autoAnnounce,
       speakDetections,
       saveHistory,
+      tutorialSeen,
     ]) {
       n.addListener(_persist);
     }
@@ -38,6 +39,9 @@ class AppSettings {
 
   /// Simpan teks yang diimbas dalam Sejarah (dalam telefon sahaja).
   final ValueNotifier<bool> saveHistory = ValueNotifier(true);
+
+  /// Dialog panduan kali pertama sudah dipaparkan untuk akaun ini.
+  final ValueNotifier<bool> tutorialSeen = ValueNotifier(false);
 
   /// Firebase UID pengguna semasa (null = belum log masuk).
   String? _userId;
@@ -72,6 +76,7 @@ class AppSettings {
       await db.upsertUser(id: id, email: email, displayName: displayName);
       final row = await db.getSettings(id);
       if (row == null) {
+        tutorialSeen.value = false; // akaun baru di telefon ini -> tunjuk panduan
         await db.saveSettings(id, _toRow());
       } else {
         _loading = true;
@@ -103,6 +108,7 @@ class AppSettings {
         'auto_announce': autoAnnounce.value ? 1 : 0,
         'speak_detections': speakDetections.value ? 1 : 0,
         'save_history': saveHistory.value ? 1 : 0,
+        'tutorial_seen': tutorialSeen.value ? 1 : 0,
       };
 
   void _fromRow(Map<String, Object?> r) {
@@ -117,5 +123,6 @@ class AppSettings {
     autoAnnounce.value = r['auto_announce'] != 0;
     speakDetections.value = r['speak_detections'] != 0;
     saveHistory.value = r['save_history'] != 0;
+    tutorialSeen.value = r['tutorial_seen'] == 1;
   }
 }

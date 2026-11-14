@@ -55,12 +55,19 @@ class _VoiceSheetState extends State<_VoiceSheet> with SingleTickerProviderState
       );
       return;
     }
-    // Sebut "Ya?" DAHULU dan tunggu habis, supaya suara app tak didengar sebagai arahan
+    // Sebut "Ya?" DAHULU dan tunggu habis, supaya suara tak didengar sebagai arahan
     await _tts.stop();
-    await _tts.speak(t('Ya?', 'Yes?'), lang: _tts.uiLang, remember: false);
-    if (!mounted || _closed) return;
-
-    if (AppSettings.instance.vibrate.value) HapticFeedback.mediumImpact();
+    if (_tts.screenReaderOn) {
+      // TalkBack yang sebut. Tunggu dia habis, kemudian GETAR = mula cakap.
+      _tts.announce('Ya? Cakap selepas getaran.', 'Yes? Speak after the vibration.', remember: false);
+      await Future<void>.delayed(const Duration(milliseconds: 2800));
+      if (!mounted || _closed) return;
+      HapticFeedback.heavyImpact(); // isyarat wajib untuk TalkBack, walaupun getaran dimatikan
+    } else {
+      await _tts.speak(t('Ya?', 'Yes?'), lang: _tts.uiLang, remember: false);
+      if (!mounted || _closed) return;
+      if (AppSettings.instance.vibrate.value) HapticFeedback.mediumImpact();
+    }
     setState(() => _phase = _Phase.listening);
     final result = await _voice.listen(
       onPartial: (w) {

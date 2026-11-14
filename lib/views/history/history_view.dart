@@ -67,7 +67,8 @@ class _HistoryViewState extends State<HistoryView> {
     }
   }
 
-  void _say(String bm, String en) => _tts.say(t(bm, en), lang: _tts.uiLang, remember: false);
+  /// Dialog dibaca sendiri oleh TalkBack, jadi ini untuk pengguna tanpa TalkBack.
+  void _say(String bm, String en) => _tts.hint(bm, en);
 
   // ============================== READ ==============================
   Future<void> _open(ScanRecord r) async {
@@ -134,8 +135,7 @@ class _HistoryViewState extends State<HistoryView> {
     await _load();
     if (!mounted) return;
     final msg = ok ? t('Nama disimpan: $name.', 'Name saved: $name.') : t('Gagal menyimpan nama.', 'Could not save the name.');
-    showInfo(context, msg);
-    _tts.say(msg, lang: _tts.uiLang, remember: false);
+    _done(msg);
   }
 
   // ============================= DELETE =============================
@@ -170,8 +170,7 @@ class _HistoryViewState extends State<HistoryView> {
     await _load();
     if (!mounted) return;
     final msg = done ? t('Imbasan dipadam.', 'Scan deleted.') : t('Gagal memadam.', 'Could not delete.');
-    showInfo(context, msg);
-    _tts.say(msg, lang: _tts.uiLang, remember: false);
+    _done(msg);
   }
 
   Future<void> _deleteAll() async {
@@ -186,8 +185,13 @@ class _HistoryViewState extends State<HistoryView> {
     await _load();
     if (!mounted) return;
     final msg = t('Semua sejarah dipadam.', 'All history deleted.');
+    _done(msg);
+  }
+
+  /// Snackbar dibaca oleh TalkBack (liveRegion). Tanpa TalkBack: suara app.
+  void _done(String msg) {
     showInfo(context, msg);
-    _tts.say(msg, lang: _tts.uiLang, remember: false);
+    _tts.hint(msg, msg);
   }
 
   @override

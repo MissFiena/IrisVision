@@ -29,6 +29,7 @@ class _ScanResultViewState extends State<ScanResultView> {
   int _index = 0;
   bool _playing = false;
   int _runId = 0; // setiap kali main semula, larian lama dibatalkan
+  int _openedAtMs = 0;
   bool _disposed = false;
 
   List<OcrBlock> get _blocks => widget.result.blocks;
@@ -45,8 +46,18 @@ class _ScanResultViewState extends State<ScanResultView> {
     final n = _blocks.length;
     final run = ++_runId;
     _set(() => _playing = true);
+    final talkBack = _tts.screenReaderOn;
+    // TalkBack baca bahagian atas dahulu (Kembali, Teks Dijumpai).
+    // Tunggu dia habis, kemudian app TERUS baca perenggan pertama.
+    if (talkBack) {
+      _openedAtMs = DateTime.now().millisecondsSinceEpoch;
+      await Future<void>.delayed(const Duration(milliseconds: 2200));
+      if (run != _runId || _disposed) return;
+    }
+    final count = bm ? '$n perenggan.' : '$n ${n == 1 ? 'paragraph' : 'paragraphs'}.';
     await _tts.speak(
-      bm ? 'Teks dijumpai. $n perenggan.' : 'Text found. $n ${n == 1 ? 'paragraph' : 'paragraphs'}.',
+      // TalkBack sudah sebut tajuk "Teks Dijumpai", jadi cuma sebut bilangan
+      talkBack ? count : (bm ? 'Teks dijumpai. $count' : 'Text found. $count'),
       lang: _tts.uiLang,
     );
     if (run == _runId && !_disposed) _playFrom(0);
@@ -85,11 +96,19 @@ class _ScanResultViewState extends State<ScanResultView> {
     await _tts.speak(bm ? 'Tamat.' : 'End.', lang: _tts.uiLang);
   }
 
-  Future<void> _pause() async {
+  Future<void> _pause({bool quiet = false}) async {
     _runId++; // batalkan gelung
     await _tts.stop();
     _set(() => _playing = false);
-    _tts.speak(t('Jeda.', 'Paused.'), lang: _tts.uiLang, remember: false);
+    if (!quiet) _tts.announce('Jeda.', 'Paused.', remember: false);
+  }
+
+  /// Pengguna TalkBack leret ke satu perenggan -> app berhenti membaca,
+  /// supaya hanya TalkBack yang bercakap.
+  void _onCardFocus() {
+    // abaikan fokus automatik TalkBack masa skrin baru dibuka
+    if (DateTime.now().millisecondsSinceEpoch - _openedAtMs < 3500) return;
+    if (_playing) _pause(quiet: true);
   }
 
   void _togglePlay() {
@@ -168,6 +187,7 @@ class _ScanResultViewState extends State<ScanResultView> {
                   total: _blocks.length,
                   text: _blocks[i].text,
                   active: i == _index,
+                  onFocus: _onCardFocus,
                   onTap: () {
                     HapticFeedback.selectionClick();
                     _playFrom(i);
@@ -196,6 +216,7 @@ class _BlockCard extends StatelessWidget {
   final String text;
   final bool active;
   final VoidCallback onTap;
+  final VoidCallback onFocus;
 
   const _BlockCard({
     super.key,
@@ -204,6 +225,7 @@ class _BlockCard extends StatelessWidget {
     required this.text,
     required this.active,
     required this.onTap,
+    required this.onFocus,
   });
 
   @override
@@ -212,10 +234,13 @@ class _BlockCard extends StatelessWidget {
     return Semantics(
       button: true,
       selected: active,
-      label: context.tr('Perenggan $number daripada $total. $text', 'Paragraph $number of $total. $text'),
-      hint: context.tr('Ketik dua kali untuk baca dari sini', 'Double tap to read from here'),
+      // TalkBack sebut nombor sahaja. Teks dibaca oleh suara app (sebutan
+      // BM/EN dikesan setiap perenggan) bila diketik dua kali.
+      label: context.tr('Perenggan $number daripada $total', 'Paragraph $number of $total'),
+      hint: context.tr('Ketik dua kali untuk dengar', 'Double tap to listen'),
       excludeSemantics: true,
       onTap: onTap,
+      onDidGainAccessibilityFocus: onFocus,
       child: Material(
         color: active ? p.tint : p.surface,
         shape: RoundedRectangleBorder(

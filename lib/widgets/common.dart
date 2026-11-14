@@ -231,9 +231,16 @@ class Segmented<T> extends StatelessWidget {
             for (final (v, label) in options) ...[
               if (v != options.first.$1) const SizedBox(width: 6),
               Expanded(
+                // Label sendiri supaya TalkBack sebut "<nama>, dipilih" untuk
+                // SEMUA pilihan (bukan "Selected, <nama>" untuk satu sahaja).
                 child: Semantics(
-                  selected: v == value,
                   button: true,
+                  label: v == value ? '$label, ${context.tr('dipilih', 'selected')}' : label,
+                  excludeSemantics: true,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onChanged(v);
+                  },
                   child: Material(
                     color: v == value ? (highlightSelected ? p.highlight : p.primary) : Colors.transparent,
                     borderRadius: BorderRadius.circular(14),

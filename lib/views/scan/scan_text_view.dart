@@ -74,8 +74,11 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
     }
   }
 
+  /// Nama skrin + cara guna (TalkBack hidup -> TalkBack sebut).
   void _announce() {
-    _tts.announce(
+    if (!mounted) return;
+    _tts.announceScreen(
+      context,
       'Imbas teks. Pegang telefon kira-kira sejengkal di atas kertas, kemudian ketik di mana-mana pada skrin.',
       'Scan text. Hold the phone about one hand span above the page, then tap anywhere on the screen.',
     );
@@ -142,10 +145,7 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
       await c.setFlashMode(on ? FlashMode.torch : FlashMode.off);
       HapticFeedback.selectionClick();
       _safeSetState(() => _torchOn = on);
-      _tts.speak(
-        _tts.uiLang == TextLang.bm ? (on ? 'Lampu dihidupkan' : 'Lampu dimatikan') : (on ? 'Light on' : 'Light off'),
-        lang: _tts.uiLang,
-      );
+      _tts.announce(on ? 'Lampu dihidupkan.' : 'Lampu dimatikan.', on ? 'Light on.' : 'Light off.', remember: false);
     } catch (e) {
       debugPrint('⚠️ Lampu: $e');
     }
@@ -158,7 +158,7 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
     HapticFeedback.heavyImpact();
     await _tts.stop();
     final bm = _tts.uiLang == TextLang.bm;
-    _tts.speak(bm ? 'Sedang membaca' : 'Reading', lang: _tts.uiLang);
+    _tts.hint('Sedang membaca.', 'Reading.'); // TalkBack baca teks status di skrin
 
     try {
       final shot = await c.takePicture();
@@ -169,13 +169,11 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
       if (result.isEmpty) {
         HapticFeedback.vibrate();
         await _tts.stop();
-        _tts.speak(
-          bm
-              ? 'Tiada teks dalam kotak. Cuba angkat telefon sedikit, atau hidupkan lampu.'
-              : 'No text in the frame. Try lifting the phone a little, or turn on the light.',
-          lang: _tts.uiLang,
-        );
-        if (mounted) showInfo(context, bm ? 'Tiada teks dijumpai. Cuba lagi.' : 'No text found. Try again.');
+        const noBm = 'Tiada teks dalam kotak. Angkat telefon sedikit, atau hidupkan lampu.';
+        const noEn = 'No text in the frame. Lift the phone a little, or turn on the light.';
+        // snackbar dibaca oleh TalkBack; tanpa TalkBack, suara app
+        if (mounted) showInfo(context, bm ? noBm : noEn);
+        _tts.hint(noBm, noEn);
         return;
       }
 

@@ -25,6 +25,7 @@ erDiagram
         INTEGER auto_announce "0 / 1"
         INTEGER speak_detections "0 / 1"
         INTEGER save_history "0 / 1"
+        INTEGER tutorial_seen "0 / 1"
     }
     scan_history {
         INTEGER id PK
@@ -65,6 +66,7 @@ erDiagram
 | user_settings | auto_announce | INTEGER | CHECK 0/1 | Say screen name when opened |
 | user_settings | speak_detections | INTEGER | CHECK 0/1 | Say detected objects |
 | user_settings | save_history | INTEGER | CHECK 0/1 | Save scanned text to History |
+| user_settings | tutorial_seen | INTEGER | CHECK 0/1 | First-time guide already shown (added in schema version 2) |
 | scan_history | id | INTEGER | PK, AUTOINCREMENT | Scan record ID |
 | scan_history | user_id | TEXT | FK → users.id, ON DELETE CASCADE | Owner of the record |
 | scan_history | title | TEXT | NOT NULL | Auto title (first ~40 characters), can be renamed |
@@ -78,6 +80,8 @@ erDiagram
 | object_labels | model_source | TEXT | CHECK coco/campus, UNIQUE with model_key | Which model the label belongs to |
 | object_labels | model_key | TEXT | NOT NULL | Class name output by the model, e.g. `cell phone` |
 | object_labels | name_bm / name_en | TEXT | NOT NULL | Name shown and spoken, e.g. Telefon / Phone |
+
+Schema version 2 added `tutorial_seen`. Phones that already have version 1 are upgraded with `ALTER TABLE user_settings ADD COLUMN`, so existing settings and history are kept.
 
 Seed data: 13 categories, 80 COCO labels and 10 campus labels (from `campus_labels.txt`) are inserted when the database is first created.
 
