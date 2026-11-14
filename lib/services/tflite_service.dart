@@ -30,22 +30,11 @@ const bool kUseWhitelist = false;
 // Kalau keluar error "Input error" masa run, tukar jadi false.
 const bool kFastInput = true;
 
-// Objek COCO yang relevan untuk kampus -> nama paparan
-const Map<String, String> kAllowedCoco = {
-  'person': 'PERSON',
-  'bicycle': 'BICYCLE',
-  'motorcycle': 'MOTORCYCLE',
-  'car': 'CAR',
-  'bench': 'BENCH',
-  'chair': 'CHAIR',
-  'couch': 'COUCH',
-  'potted plant': 'PLANT',
-  'dining table': 'TABLE',
-  'refrigerator': 'REFRIGERATOR',
-  'tv': 'TV',
-  'laptop': 'LAPTOP',
-  'backpack': 'BACKPACK',
-  'suitcase': 'SUITCASE',
+// Objek COCO yang relevan untuk kampus (dipakai bila kUseWhitelist = true).
+// Nama BM/EN untuk paparan & suara kini dalam jadual SQLite `object_labels`.
+const Set<String> kAllowedCoco = {
+  'person', 'bicycle', 'motorcycle', 'car', 'bench', 'chair', 'couch', 'potted plant',
+  'dining table', 'refrigerator', 'tv', 'laptop', 'backpack', 'suitcase',
 };
 
 const List<String> _kCocoLabels = [
@@ -158,7 +147,7 @@ class TFLiteService {
       // senarai kelas yang dibenarkan
       final List<bool> allowed = List.generate(_numClasses, (i) {
         if (_numClasses == 80 && kUseWhitelist) {
-          return kAllowedCoco.containsKey(_kCocoLabels[i]);
+          return kAllowedCoco.contains(_kCocoLabels[i]);
         }
         return true;
       });
@@ -204,13 +193,12 @@ class TFLiteService {
     }
   }
 
+  /// Kunci label model (contoh 'cell phone', 'door'). Nama BM/EN dicari
+  /// dalam jadual `object_labels` melalui DatabaseService.labelName().
   String _labelFor(int id) {
-    if (_numClasses == 80) {
-      final String name = _kCocoLabels[id];
-      return kAllowedCoco[name] ?? name.toUpperCase();
-    }
-    if (id >= 0 && id < _labels.length) return _labels[id].toUpperCase();
-    return 'CAMPUS OBJECT';
+    if (_numClasses == 80) return _kCocoLabels[id];
+    if (id >= 0 && id < _labels.length) return _labels[id].toLowerCase();
+    return 'campus object';
   }
 
   /// [rotationDegrees] = camera.sensorOrientation (biasanya 90 untuk kamera belakang)

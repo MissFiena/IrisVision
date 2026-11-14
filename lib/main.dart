@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'firebase_options.dart'; // dijana oleh: flutterfire configure
 import 'services/app_settings.dart';
+import 'services/database_service.dart';
 import 'services/lang.dart';
 import 'theme/app_theme.dart';
 import 'views/auth_gate.dart';
@@ -54,6 +55,7 @@ class _BootstrapState extends State<_Bootstrap> {
   Future<void> _start() async {
     await Future.wait([
       Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform),
+      DatabaseService.instance.init(), // SQLite: tetapan, sejarah, label objek
       Future<void>.delayed(const Duration(milliseconds: 1200)), // splash minimum
     ]);
   }

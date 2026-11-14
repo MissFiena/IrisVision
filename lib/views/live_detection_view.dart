@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/app_settings.dart';
+import '../services/database_service.dart';
 import '../services/lang.dart';
 import '../services/tflite_service.dart';
 import '../services/tts_service.dart';
@@ -295,30 +296,13 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
   }
 
   // ============================== UI ==============================
-  /// Nama paparan BM ringkas untuk label model (yang tiada -> huruf kecil biasa).
-  static const Map<String, String> _bm = {
-    'PERSON': 'Orang', 'BICYCLE': 'Basikal', 'CAR': 'Kereta', 'MOTORCYCLE': 'Motosikal',
-    'BUS': 'Bas', 'BENCH': 'Bangku', 'CHAIR': 'Kerusi', 'COUCH': 'Sofa', 'PLANT': 'Pokok pasu',
-    'TABLE': 'Meja', 'REFRIGERATOR': 'Peti sejuk', 'TV': 'TV', 'LAPTOP': 'Laptop',
-    'BACKPACK': 'Beg galas', 'SUITCASE': 'Beg pakaian', 'BOTTLE': 'Botol', 'CUP': 'Cawan',
-    'MOUSE': 'Tetikus', 'KEYBOARD': 'Papan kekunci', 'CELL PHONE': 'Telefon', 'BOOK': 'Buku',
-    'CLOCK': 'Jam', 'SCISSORS': 'Gunting', 'UMBRELLA': 'Payung', 'HANDBAG': 'Beg tangan',
-    'TOILET': 'Tandas', 'SINK': 'Sinki', 'DOG': 'Anjing', 'CAT': 'Kucing',
-  };
-
   bool get _isBm => _settings.language.value == VoiceLanguage.bm;
 
   static String _cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
-  /// Nama untuk kotak dan panel (ikut bahasa pilihan).
-  String _name(String label) {
-    if (_isBm) {
-      final bm = _bm[label];
-      if (bm != null) return bm;
-    }
-    if (label == 'TV') return 'TV';
-    return _cap(label.toLowerCase());
-  }
+  /// Nama untuk kotak, panel dan suara (ikut bahasa pilihan).
+  /// Diambil dari jadual SQLite `object_labels` (80 COCO + 10 kampus).
+  String _name(String label) => DatabaseService.instance.labelName(label, bm: _isBm);
 
   String _posPhrase(String pos) {
     if (_isBm) {

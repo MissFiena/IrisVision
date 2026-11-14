@@ -199,6 +199,12 @@ class ProfileView extends StatelessWidget {
               title: context.tr('Getaran bila objek dikesan', 'Vibrate when an object is found'),
             ),
             const SizedBox(height: 12),
+            _Toggle(
+              value: s.saveHistory,
+              title: context.tr('Simpan sejarah imbasan', 'Save scan history'),
+              subtitle: context.tr('Disimpan dalam telefon ini sahaja', 'Kept on this phone only'),
+            ),
+            const SizedBox(height: 12),
             // ---------------- privasi ----------------
             Material(
               color: p.surface,

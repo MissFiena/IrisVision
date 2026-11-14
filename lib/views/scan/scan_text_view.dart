@@ -2,6 +2,8 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../services/app_settings.dart';
+import '../../services/database_service.dart';
 import '../../services/lang.dart';
 import '../../services/ocr_service.dart';
 import '../../services/tts_service.dart';
@@ -177,6 +179,9 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
         return;
       }
 
+      // CREATE: simpan dalam Sejarah (jika dihidupkan di Profil)
+      await _saveToHistory(result);
+
       // matikan lampu & kamera semasa di skrin keputusan (jimat bateri)
       await _stopCamera();
       if (!mounted) return;
@@ -187,6 +192,21 @@ class _ScanTextViewState extends State<ScanTextView> with WidgetsBindingObserver
       if (mounted) showInfo(context, bm ? 'Gagal mengimbas. Sila cuba lagi.' : 'Scan failed. Please try again.');
     } finally {
       _safeSetState(() => _busy = false);
+    }
+  }
+
+  Future<void> _saveToHistory(OcrResult result) async {
+    final s = AppSettings.instance;
+    final uid = s.userId;
+    if (!s.saveHistory.value || uid == null || !DatabaseService.instance.isReady) return;
+    try {
+      await DatabaseService.instance.addScan(
+        userId: uid,
+        title: historyTitleFor(result.blocks.first.text),
+        content: result.fullText,
+      );
+    } catch (e) {
+      debugPrint('❌ Ralat simpan sejarah: $e'); // imbasan tetap dipaparkan
     }
   }
 

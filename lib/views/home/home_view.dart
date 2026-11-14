@@ -7,6 +7,7 @@ import '../../services/tts_service.dart';
 import '../../services/voice_command_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
+import '../history/history_view.dart';
 import '../live_detection_view.dart';
 import '../profile/profile_view.dart';
 import '../scan/scan_text_view.dart';
@@ -87,7 +88,7 @@ class _HomeBody extends StatelessWidget {
         tts.announce('Membuka profil.', 'Opening profile.');
         _open(context, const ProfileView());
       case VoiceAction.history:
-        _soon(context, t('Sejarah', 'History'));
+        _open(context, const HistoryView()); // skrin itu umumkan dirinya
       case VoiceAction.langBm:
         s.language.value = VoiceLanguage.bm;
         tts.say('Bahasa Melayu dipilih.', lang: TextLang.bm, remember: false);
@@ -246,7 +247,7 @@ class _HomeBody extends StatelessWidget {
               right: 16,
               bottom: 16,
               child: _Dock(
-                onHistory: () => _soon(context, t('Sejarah', 'History')),
+                onHistory: () => _open(context, const HistoryView()),
                 onVoice: () => _voice(context),
                 onHelp: () => _soon(context, t('Bantuan', 'Help')),
                 onProfile: () => _open(context, const ProfileView()),

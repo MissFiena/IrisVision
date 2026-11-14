@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../services/app_settings.dart';
 import '../services/auth_service.dart';
 import '../services/lang.dart';
 import '../theme/app_theme.dart';
@@ -42,13 +43,47 @@ class _AuthGateState extends State<AuthGate> {
         } else if (_auth.needsVerification(user)) {
           page = const VerifyEmailView();
         } else {
-          page = const HomeView();
+          page = _SignedIn(user: user);
         }
         return AnimatedSwitcher(
           duration: const Duration(milliseconds: 250),
           child: KeyedSubtree(key: ValueKey(page.runtimeType), child: page),
         );
       },
+    );
+  }
+}
+
+/// Selepas log masuk: daftar pengguna dalam SQLite dan muat tetapannya
+/// (bahasa, kelajuan suara, tema...) SEBELUM skrin utama dibuka, supaya
+/// skrin utama terus bercakap dalam bahasa yang betul.
+class _SignedIn extends StatefulWidget {
+  final User user;
+  const _SignedIn({required this.user});
+
+  @override
+  State<_SignedIn> createState() => _SignedInState();
+}
+
+class _SignedInState extends State<_SignedIn> {
+  late final Future<void> _load = AppSettings.instance.bindUser(
+    id: widget.user.uid,
+    email: widget.user.email ?? '',
+    displayName: widget.user.displayName,
+  );
+
+  @override
+  void dispose() {
+    AppSettings.instance.unbindUser(); // log keluar
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: _load,
+      builder: (context, snapshot) =>
+          snapshot.connectionState == ConnectionState.done ? const HomeView() : const SplashView(),
     );
   }
 }

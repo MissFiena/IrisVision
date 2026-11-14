@@ -12,7 +12,10 @@ import '../../widgets/common.dart';
 /// lompat terus ke situ.
 class ScanResultView extends StatefulWidget {
   final OcrResult result;
-  const ScanResultView({super.key, required this.result});
+
+  /// Tajuk rekod bila dibuka dari Sejarah (null = imbasan baru).
+  final String? historyTitle;
+  const ScanResultView({super.key, required this.result, this.historyTitle});
 
   @override
   State<ScanResultView> createState() => _ScanResultViewState();
@@ -133,15 +136,22 @@ class _ScanResultViewState extends State<ScanResultView> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: TopBar(title: Headline(context.tr('Teks Dijumpai', 'Text Found'), size: 24)),
+              child: TopBar(
+                title: Headline(widget.historyTitle ?? context.tr('Teks Dijumpai', 'Text Found'), size: 24),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
-                context.tr(
-                  '${_blocks.length} perenggan · ${r.wordCount} perkataan · ${r.latencyMs} ms',
-                  '${_blocks.length} paragraphs · ${r.wordCount} words · ${r.latencyMs} ms',
-                ),
+                widget.historyTitle != null
+                    ? context.tr(
+                        'Dari Sejarah · ${_blocks.length} perenggan · ${r.wordCount} perkataan',
+                        'From History · ${_blocks.length} paragraphs · ${r.wordCount} words',
+                      )
+                    : context.tr(
+                        '${_blocks.length} perenggan · ${r.wordCount} perkataan · ${r.latencyMs} ms',
+                        '${_blocks.length} paragraphs · ${r.wordCount} words · ${r.latencyMs} ms',
+                      ),
                 style: TextStyle(fontSize: 15, color: p.textSecondary),
               ),
             ),

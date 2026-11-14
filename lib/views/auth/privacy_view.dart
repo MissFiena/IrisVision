@@ -15,7 +15,9 @@ class PrivacyView extends StatelessWidget {
         'Notis ini selaras dengan Akta Perlindungan Data Peribadi 2010 (PDPA).\n\n'
             '1. Data yang dikumpul: nama dan alamat e-mel, untuk tujuan akaun sahaja.\n\n'
             '2. Gambar kamera dan teks yang diimbas diproses dalam telefon anda. '
-            'Ia tidak dimuat naik ke mana-mana pelayan.\n\n'
+            'Ia tidak dimuat naik ke mana-mana pelayan. Gambar dipadam serta-merta. '
+            'Teks yang diimbas disimpan dalam Sejarah di telefon ini sahaja, dan boleh '
+            'dipadam atau dimatikan di app.\n\n'
             '3. Akaun diurus oleh Google Firebase Authentication. Kata laluan disimpan '
             'dalam bentuk hash dan tidak boleh dilihat oleh sesiapa, termasuk pembangun.\n\n'
             '4. Data tidak dijual, disewa atau dikongsi dengan pihak ketiga.\n\n'
@@ -25,7 +27,9 @@ class PrivacyView extends StatelessWidget {
         'This notice follows the Personal Data Protection Act 2010 (PDPA).\n\n'
             '1. Data collected: your name and email address, for your account only.\n\n'
             '2. Camera images and scanned text are processed on your phone. '
-            'They are not uploaded to any server.\n\n'
+            'They are not uploaded to any server. Photos are deleted right away. '
+            'Scanned text is kept in History on this phone only, and can be '
+            'deleted or turned off in the app.\n\n'
             '3. Accounts are managed by Google Firebase Authentication. Passwords are stored '
             'as a hash and cannot be seen by anyone, including the developer.\n\n'
             '4. Data is not sold, rented or shared with third parties.\n\n'
@@ -47,8 +51,8 @@ class PrivacyView extends StatelessWidget {
         ),
         (
           Icons.lock_outline,
-          t('Hanya nama dan e-mel disimpan, dengan selamat, untuk akaun anda.',
-              'Only your name and email are stored, securely, for your account.')
+          t('Hanya nama dan e-mel disimpan untuk akaun. Sejarah imbasan kekal dalam telefon anda.',
+              'Only your name and email are stored for your account. Scan history stays on your phone.')
         ),
         (
           Icons.delete_outline,
