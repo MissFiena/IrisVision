@@ -27,3 +27,28 @@ class LangScope extends InheritedWidget {
   @override
   bool updateShouldNotify(LangScope oldWidget) => oldWidget.lang != lang;
 }
+
+/// Tukar nombor ke perkataan BM, supaya TalkBack/TTS tak baca dalam English.
+String nomborBm(int n) {
+  const s = ['kosong', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'lapan', 'sembilan'];
+  if (n < 0) return 'negatif ${nomborBm(-n)}';
+  if (n < 10) return s[n];
+  if (n == 10) return 'sepuluh';
+  if (n == 11) return 'sebelas';
+  if (n < 20) return '${s[n - 10]} belas';
+  if (n < 100) {
+    final r = n % 10;
+    return r == 0 ? '${s[n ~/ 10]} puluh' : '${s[n ~/ 10]} puluh ${s[r]}';
+  }
+  if (n < 1000) {
+    final h = n ~/ 100, r = n % 100;
+    final hs = h == 1 ? 'seratus' : '${s[h]} ratus';
+    return r == 0 ? hs : '$hs ${nomborBm(r)}';
+  }
+  if (n < 1000000) {
+    final k = n ~/ 1000, r = n % 1000;
+    final ks = k == 1 ? 'seribu' : '${nomborBm(k)} ribu';
+    return r == 0 ? ks : '$ks ${nomborBm(r)}';
+  }
+  return '$n';
+}

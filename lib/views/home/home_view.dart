@@ -144,7 +144,6 @@ class _HomeBody extends StatelessWidget {
     final n = DateTime.now();
     final h = n.hour;
     final h12 = h % 12 == 0 ? 12 : h % 12;
-    final m = n.minute.toString().padLeft(2, '0');
     final when = h < 12
         ? 'pagi'
         : h < 14
@@ -152,7 +151,8 @@ class _HomeBody extends StatelessWidget {
             : h < 19
                 ? 'petang'
                 : 'malam';
-    return 'Sekarang pukul $h12.$m $when.';
+    final mm = n.minute == 0 ? '' : ' ${nomborBm(n.minute)} minit';
+    return 'Sekarang pukul ${nomborBm(h12)}$mm $when.';
   }
 
   static String _timeEn() {

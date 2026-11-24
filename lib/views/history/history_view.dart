@@ -61,7 +61,7 @@ class _HistoryViewState extends State<HistoryView> {
       final n = _items.length;
       await _tts.announceScreen(
         context,
-        n == 0 ? 'Sejarah. Tiada imbasan disimpan.' : 'Sejarah. $n imbasan disimpan.',
+        n == 0 ? 'Sejarah. Tiada imbasan disimpan.' : 'Sejarah. ${nomborBm(n)} imbasan disimpan.',
         n == 0 ? 'History. No saved scans.' : 'History. $n saved ${n == 1 ? 'scan' : 'scans'}.',
       );
     }
