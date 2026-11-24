@@ -153,7 +153,7 @@ class VoiceCommandService {
     (VoiceAction.langEn, ['bahasa inggeris', 'bahasa english', 'english', 'inggeris']),
     (VoiceAction.langBm, ['bahasa melayu', 'bahasa malaysia', 'malay', 'melayu']),
     (VoiceAction.faster, ['laju', 'cepat', 'faster', 'speed up']),
-    (VoiceAction.slower, ['perlahan', 'perlaan', 'lambat', 'slower', 'slow down']),
+    (VoiceAction.slower, ['perlahan', 'parlahan', 'perlaan', 'lambat', 'slower', 'slow down']),
     (VoiceAction.detect, ['kesan objek', 'objek', 'object', 'detect', 'kesan', 'apa depan', 'apa di depan']),
     (VoiceAction.scan, ['imbas teks', 'imbas', 'teks', 'text', 'scan', 'baca', 'read']),
     (VoiceAction.history, ['sejarah', 'sejara', 'sajara', 'sajarah', 'sir jara', 'history', 'rekod']),
