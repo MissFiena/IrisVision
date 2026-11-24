@@ -264,7 +264,7 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
       _pendingCount = 1;
     }
     if (_pendingCount < _stableFrames) return; // tunggu stabil, elak berkelip
-    if (_tts.isSpeaking) return; // jangan potong ayat yang sedang dibaca
+    if (_tts.isSpeaking && now - _lastSpokenMs < 8000) return; // elak tersangkut selamanya
     if (now - _lastSpokenMs < _minGapMs) return;
 
     final isNew = key != _sceneKey;
@@ -513,8 +513,8 @@ class _LiveDetectionViewState extends State<LiveDetectionView> with WidgetsBindi
             builder: (context, r, _) => _ResultPanel(
               sentence: _sentence(r),
               bm: _isBm,
-              // suara app aktif -> TalkBack tak perlu baca juga (elak bertindih)
-              live: !_settings.speakDetections.value,
+              // OFF = senyap betul-betul. Pengguna leret ke panel untuk dengar.
+              live: false,
               left: _firstAt(r, 'kiri'),
               center: _firstAt(r, 'tengah'),
               right: _firstAt(r, 'kanan'),
